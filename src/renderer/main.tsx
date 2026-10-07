@@ -10,6 +10,7 @@ function Boot() {
   const refresh = useApp((s) => s.refresh)
   const pushConsole = useApp((s) => s.pushConsole)
   useEffect(() => {
+    if (!window.lunar) return
     void refresh()
     const offs = [
       window.lunar.on(IpcChannel.console, (payload) => pushConsole(payload as ConsoleLine)),

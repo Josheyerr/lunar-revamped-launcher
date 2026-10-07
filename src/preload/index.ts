@@ -1,5 +1,4 @@
 import { contextBridge, ipcRenderer, type IpcRendererEvent } from 'electron'
-import { IpcChannel } from '../shared/ipc'
 import type {
   AccountPublic,
   AppSnapshot,
@@ -15,6 +14,16 @@ import type {
   ServerEntry,
   SkinInfo
 } from '../shared/types'
+
+const IpcChannel = {
+  snapshot: 'app:snapshot',
+  toast: 'app:toast',
+  console: 'launch:console',
+  progress: 'download:progress',
+  authProgress: 'auth:progress',
+  launchState: 'launch:state',
+  clientStatus: 'client:status'
+} as const
 
 export interface LunarApi {
   windowAction: (action: 'minimize' | 'maximize' | 'close') => Promise<void>
