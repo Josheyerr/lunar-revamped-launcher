@@ -1,0 +1,29 @@
+appId: com.lunarrevamped.launcher
+productName: Lunar Revamped
+directories:
+  output: release
+files:
+  - dist/**/*
+  - package.json
+  - node_modules/**/*
+asar: true
+win:
+  target:
+    - target: nsis
+      arch: [x64]
+  artifactName: LunarRevampedSetup.${ext}
+nsis:
+  oneClick: false
+  perMachine: false
+  allowToChangeInstallationDirectory: true
+  createDesktopShortcut: true
+  createStartMenuShortcut: true
+  shortcutName: Lunar Revamped
+publish:
+  provider: github
+  owner: Josheyerr
+  repo: lunar-revamped-launcher
+mac:
+  target: dmg
+linux:
+  target: AppImage

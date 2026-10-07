@@ -1,0 +1,10 @@
+node_modules
+dist
+release
+release-client
+out
+*.log
+.DS_Store
+.env
+.electron-builder.env
+smoke-*.txt

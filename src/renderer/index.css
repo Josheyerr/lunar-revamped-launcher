@@ -1,0 +1,60 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  color-scheme: dark;
+  --accent: #6d7cff;
+  --bg: #07080c;
+  --panel: rgba(18, 20, 28, 0.78);
+  --line: rgba(255, 255, 255, 0.08);
+  --text: #f4f6fb;
+  --muted: #9aa3b5;
+}
+
+:root[data-theme='light'] {
+  color-scheme: light;
+  --bg: #f4f6fb;
+  --panel: rgba(255, 255, 255, 0.78);
+  --line: rgba(15, 18, 28, 0.08);
+  --text: #12141c;
+  --muted: #5c6578;
+}
+
+html,
+body,
+#root {
+  height: 100%;
+  margin: 0;
+  background: var(--bg);
+  color: var(--text);
+  font-family: Inter, 'Segoe UI', sans-serif;
+}
+
+button,
+input,
+textarea,
+select {
+  font: inherit;
+}
+
+.glass {
+  background: var(--panel);
+  border: 1px solid var(--line);
+  backdrop-filter: blur(18px);
+}
+
+.skel {
+  background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.08), transparent);
+  background-size: 200% 100%;
+  animation: shimmer 1.2s infinite;
+}
+
+@keyframes shimmer {
+  0% {
+    background-position: 100% 0;
+  }
+  100% {
+    background-position: -100% 0;
+  }
+}

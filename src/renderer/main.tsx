@@ -1,0 +1,31 @@
+import { StrictMode, useEffect } from 'react'
+import { createRoot } from 'react-dom/client'
+import { App } from './App'
+import './index.css'
+import { IpcChannel } from '@shared/ipc'
+import { useApp } from './stores/appStore'
+import type { ConsoleLine, DownloadProgress, LaunchState, MicrosoftLoginState } from '@shared/types'
+
+function Boot() {
+  const refresh = useApp((s) => s.refresh)
+  const pushConsole = useApp((s) => s.pushConsole)
+  useEffect(() => {
+    void refresh()
+    const offs = [
+      window.lunar.on(IpcChannel.console, (payload) => pushConsole(payload as ConsoleLine)),
+      window.lunar.on(IpcChannel.progress, (payload) => useApp.setState({ progress: payload as DownloadProgress })),
+      window.lunar.on(IpcChannel.authProgress, (payload) => useApp.setState({ login: payload as MicrosoftLoginState })),
+      window.lunar.on(IpcChannel.launchState, (payload) => {
+        const launch = payload as LaunchState
+        const snap = useApp.getState().snap
+        if (snap) useApp.setState({ snap: { ...snap, launch } })
+      }),
+      window.lunar.on(IpcChannel.clientStatus, () => void refresh())
+    ]
+    return () => offs.forEach((off) => off())
+  }, [refresh, pushConsole])
+  return <App />
+}
+
+const root = document.getElementById('root')
+if (root) createRoot(root).render(<StrictMode><Boot /></StrictMode>)
