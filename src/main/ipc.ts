@@ -19,7 +19,7 @@ import { consoleLines, launchState, previewCommand, startGame, stopGame } from '
 import { listMods, setModEnabled } from './services/mods'
 import { addServer, listServers, removeServer } from './services/servers'
 import { chooseSkin, skinInfo } from './services/skins'
-import { checkLauncherUpdate, updaterState } from './services/updater'
+import { checkLauncherUpdate, openUpdateDownload, updaterState } from './services/updater'
 import { loadStore, updateStore } from './store'
 import { applyLaunchBehavior, markQuitting, windowAction } from './window'
 
@@ -122,6 +122,7 @@ export function registerIpc(): void {
   ipcMain.handle('servers:remove', (_e, id: string) => wrap(() => removeServer(id)))
   ipcMain.handle('skins:info', () => wrap(() => skinInfo()))
   ipcMain.handle('skins:choose', () => wrap(() => chooseSkin()))
-  ipcMain.handle('updater:check', () => wrap(() => checkLauncherUpdate()))
+  ipcMain.handle('updater:check', () => wrap(() => checkLauncherUpdate(true)))
+  ipcMain.handle('updater:open', () => wrap(() => openUpdateDownload()))
   ipcMain.handle('account:active', () => wrap(() => activeAccount()?.username ?? ''))
 }

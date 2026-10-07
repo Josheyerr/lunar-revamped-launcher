@@ -12,7 +12,8 @@ import type {
   MicrosoftLoginState,
   ModEntry,
   ServerEntry,
-  SkinInfo
+  SkinInfo,
+  UpdaterState
 } from '../shared/types'
 
 const IpcChannel = {
@@ -22,7 +23,8 @@ const IpcChannel = {
   progress: 'download:progress',
   authProgress: 'auth:progress',
   launchState: 'launch:state',
-  clientStatus: 'client:status'
+  clientStatus: 'client:status',
+  updater: 'updater:status'
 } as const
 
 export interface LunarApi {
@@ -56,7 +58,8 @@ export interface LunarApi {
   removeServer: (id: string) => Promise<ServerEntry[]>
   skinInfo: () => Promise<SkinInfo>
   chooseSkin: () => Promise<SkinInfo>
-  checkUpdate: () => Promise<{ status: string; version: string }>
+  checkUpdate: () => Promise<UpdaterState>
+  openUpdateDownload: () => Promise<void>
   on: (channel: string, listener: (payload: unknown) => void) => () => void
 }
 
@@ -98,6 +101,7 @@ const api: LunarApi = {
   skinInfo: () => call('skins:info'),
   chooseSkin: () => call('skins:choose'),
   checkUpdate: () => call('updater:check'),
+  openUpdateDownload: () => call('updater:open'),
   on: (channel, listener) => {
     const wrapped = (_event: IpcRendererEvent, payload: unknown) => listener(payload)
     ipcRenderer.on(channel, wrapped)

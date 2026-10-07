@@ -109,8 +109,40 @@ export function SettingsPage() {
           <button className="text-sm" onClick={() => void navigator.clipboard.writeText(preview)}>Copy</button>
         </div>
       ) : null}
-      <p className="mt-4 text-xs text-[var(--muted)]">Launcher update: {snap.updater.status} ({snap.updater.version})</p>
-      <button className="mt-1 text-sm" onClick={() => void window.lunar.checkUpdate().then(() => refresh())}>Check launcher update</button>
+      <div className="mt-4">
+        <p className="text-xs text-[var(--muted)]">
+          Launcher {snap.updater.version}: {snap.updater.status || 'Not checked yet'}
+        </p>
+        {snap.updater.phase === 'downloading' ? (
+          <div className="mt-1 h-1 overflow-hidden rounded bg-white/10">
+            <div className="h-full" style={{ width: `${snap.updater.percent}%`, background: 'var(--accent)' }} />
+          </div>
+        ) : null}
+        <div className="mt-2 flex gap-2">
+          <button
+            className="rounded-xl border border-white/15 px-3 py-1 text-sm disabled:opacity-50"
+            disabled={snap.updater.phase === 'checking' || snap.updater.phase === 'downloading' || snap.updater.phase === 'installing'}
+            onClick={() =>
+              void window.lunar
+                .checkUpdate()
+                .then((updater) => useApp.getState().applyUpdater(updater))
+                .catch((error: unknown) => toast(error instanceof Error ? error.message : 'Update check failed'))
+            }
+          >
+            Check for updates
+          </button>
+          {snap.updater.phase === 'available' && !snap.updater.packaged ? (
+            <button
+              className="rounded-xl border border-white/15 px-3 py-1 text-sm"
+              onClick={() =>
+                void window.lunar.openUpdateDownload().catch((error: unknown) => toast(error instanceof Error ? error.message : 'Could not open download'))
+              }
+            >
+              Open download
+            </button>
+          ) : null}
+        </div>
+      </div>
     </section>
   )
 }

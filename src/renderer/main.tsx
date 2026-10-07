@@ -4,7 +4,7 @@ import { App } from './App'
 import './index.css'
 import { IpcChannel } from '@shared/ipc'
 import { useApp } from './stores/appStore'
-import type { ConsoleLine, DownloadProgress, LaunchState, MicrosoftLoginState } from '@shared/types'
+import type { ConsoleLine, DownloadProgress, LaunchState, MicrosoftLoginState, UpdaterState } from '@shared/types'
 
 function Boot() {
   const refresh = useApp((s) => s.refresh)
@@ -29,7 +29,10 @@ function Boot() {
         const snap = useApp.getState().snap
         if (snap) useApp.setState({ snap: { ...snap, launch } })
       }),
-      window.lunar.on(IpcChannel.clientStatus, () => void refresh())
+      window.lunar.on(IpcChannel.clientStatus, () => void refresh()),
+      window.lunar.on(IpcChannel.updater, (payload) => {
+        useApp.getState().applyUpdater(payload as UpdaterState)
+      })
     ]
     return () => offs.forEach((off) => off())
   }, [refresh, pushConsole])

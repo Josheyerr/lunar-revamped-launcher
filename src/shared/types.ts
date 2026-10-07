@@ -147,6 +147,27 @@ export interface NewsItem {
   publishedAt: string
 }
 
+export type UpdaterPhase =
+  | 'idle'
+  | 'checking'
+  | 'current'
+  | 'available'
+  | 'downloading'
+  | 'downloaded'
+  | 'installing'
+  | 'error'
+
+export interface UpdaterState {
+  status: string
+  version: string
+  phase: UpdaterPhase
+  latestVersion: string
+  percent: number
+  packaged: boolean
+  seq: number
+  notify: boolean
+}
+
 export interface AppSnapshot {
   accounts: AccountPublic[]
   activeAccountId: string
@@ -157,5 +178,5 @@ export interface AppSnapshot {
   launch: LaunchState
   memory: MemoryInfo
   news: NewsItem[]
-  updater: { status: string; version: string }
+  updater: UpdaterState
 }

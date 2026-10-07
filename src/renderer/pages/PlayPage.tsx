@@ -16,6 +16,11 @@ export function PlayPage() {
   const refresh = useApp((s) => s.refresh)
   const setPage = useApp((s) => s.setPage)
   const [offline, setOffline] = useState('')
+  const [addStep, setAddStep] = useState<'idle' | 'choose' | 'offline'>('idle')
+  const closeAdd = () => {
+    setOffline('')
+    setAddStep('idle')
+  }
   if (!snap) return <div className="skel h-40 rounded-2xl" />
   const account = snap.accounts.find((item) => item.id === snap.activeAccountId)
   const play = async () => {
@@ -35,6 +40,24 @@ export function PlayPage() {
           <p className="text-xs uppercase tracking-[0.2em] text-[var(--muted)]">Minecraft 1.8.9</p>
           <h1 className="mt-1 text-3xl font-semibold">Lunar Revamped</h1>
           <p className="mt-2 text-sm text-[var(--muted)]">{snap.client.message}</p>
+          {snap.updater.phase !== 'idle' ? (
+            <p className="mt-1 text-xs text-[var(--muted)]">{snap.updater.status}</p>
+          ) : null}
+          {snap.updater.phase === 'downloading' ? (
+            <div className="mt-1 h-1 w-48 overflow-hidden rounded bg-white/10">
+              <div className="h-full" style={{ width: `${snap.updater.percent}%`, background: 'var(--accent)' }} />
+            </div>
+          ) : null}
+          {snap.updater.phase === 'available' && !snap.updater.packaged ? (
+            <button
+              className="mt-2 rounded-full border border-white/15 px-3 py-1 text-xs"
+              onClick={() =>
+                void window.lunar.openUpdateDownload().catch((error: unknown) => toast(error instanceof Error ? error.message : 'Could not open download'))
+              }
+            >
+              Open download
+            </button>
+          ) : null}
         </div>
         <div className="glass flex items-center gap-3 rounded-2xl px-3 py-2">
           {account ? (
@@ -99,7 +122,22 @@ export function PlayPage() {
           </p>
         </article>
         <article className="glass rounded-2xl p-4">
-          <h2 className="text-sm font-semibold">Account</h2>
+          <div className="flex items-center justify-between gap-2">
+            <h2 className="text-sm font-semibold">Account</h2>
+            {addStep === 'idle' ? (
+              <button
+                className="rounded-lg px-3 py-1 text-sm text-white"
+                style={{ background: 'var(--accent)' }}
+                onClick={() => setAddStep('choose')}
+              >
+                Add
+              </button>
+            ) : (
+              <button className="rounded-full border border-white/15 px-3 py-1 text-xs" onClick={closeAdd}>
+                Back
+              </button>
+            )}
+          </div>
           {login?.state === 'waiting' || login?.state === 'starting' ? (
             <p className="mt-2 text-sm">
               {login.message}
@@ -113,32 +151,51 @@ export function PlayPage() {
           ) : null}
           {login?.state === 'error' ? <p className="mt-2 text-sm text-red-300">{login.message}</p> : null}
           {login?.state === 'success' ? <p className="mt-2 text-sm">{login.message}</p> : null}
-          <div className="mt-2 flex gap-2">
-            <button
-              className="rounded-lg px-3 py-1 text-sm text-white"
-              style={{ background: 'var(--accent)' }}
-              onClick={() => void window.lunar.startMicrosoft()}
-            >
-              Microsoft
-            </button>
-            <input
-              className="w-28 rounded-lg border border-white/10 bg-transparent px-2 text-sm"
-              placeholder="offline name"
-              value={offline}
-              onChange={(event) => setOffline(event.target.value)}
-            />
-            <button
-              className="rounded-lg border border-white/15 px-2 text-sm"
-              onClick={() =>
-                void window.lunar
-                  .addOffline(offline)
-                  .then(() => refresh())
-                  .catch((error: unknown) => toast(error instanceof Error ? error.message : 'Could not add account'))
-              }
-            >
-              Add
-            </button>
-          </div>
+          {addStep === 'choose' ? (
+            <div className="mt-2 flex flex-wrap gap-2">
+              <button
+                className="rounded-lg border border-white/15 px-3 py-1 text-sm"
+                onClick={() => setAddStep('offline')}
+              >
+                Offline account
+              </button>
+              <button
+                className="rounded-lg px-3 py-1 text-sm text-white"
+                style={{ background: 'var(--accent)' }}
+                onClick={() => {
+                  closeAdd()
+                  void window.lunar.startMicrosoft()
+                }}
+              >
+                Microsoft account
+              </button>
+            </div>
+          ) : null}
+          {addStep === 'offline' ? (
+            <div className="mt-2 flex gap-2">
+              <input
+                className="min-w-0 flex-1 rounded-lg border border-white/15 bg-transparent px-2 text-sm"
+                placeholder="Username"
+                value={offline}
+                onChange={(event) => setOffline(event.target.value)}
+              />
+              <button
+                className="rounded-lg px-3 py-1 text-sm text-white"
+                style={{ background: 'var(--accent)' }}
+                onClick={() =>
+                  void window.lunar
+                    .addOffline(offline)
+                    .then(() => {
+                      closeAdd()
+                      return refresh()
+                    })
+                    .catch((error: unknown) => toast(error instanceof Error ? error.message : 'Could not add account'))
+                }
+              >
+                Confirm
+              </button>
+            </div>
+          ) : null}
           <div className="mt-2 flex flex-wrap gap-1">
             {snap.accounts.map((item) => (
               <button key={item.id} className="rounded-full bg-white/5 px-2 py-1 text-xs" onClick={() => void window.lunar.selectAccount(item.id).then(() => refresh())}>

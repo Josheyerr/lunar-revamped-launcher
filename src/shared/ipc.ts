@@ -5,7 +5,8 @@ export const IpcChannel = {
   progress: 'download:progress',
   authProgress: 'auth:progress',
   launchState: 'launch:state',
-  clientStatus: 'client:status'
+  clientStatus: 'client:status',
+  updater: 'updater:status'
 } as const
 
 export type IpcChannelName = (typeof IpcChannel)[keyof typeof IpcChannel]
