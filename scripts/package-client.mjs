@@ -41,6 +41,16 @@ for (const rel of include) {
   fs.cpSync(from, dest, { recursive: true })
 }
 
+const patchedUi = path.join(runtime, 'run', 'lunarclient', 'ui-local')
+const stagedUi = path.join(stage, 'libs', 'lunar-assets', 'ui')
+if (fs.existsSync(patchedUi)) {
+  fs.mkdirSync(path.dirname(stagedUi), { recursive: true })
+  fs.cpSync(patchedUi, stagedUi, { recursive: true })
+  console.log('overlaid patched ui-local onto libs/lunar-assets/ui')
+} else {
+  console.warn('patched ui-local missing; shipping stock lunar-assets/ui')
+}
+
 function walk(dir) {
   for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
     const full = path.join(dir, entry.name)
