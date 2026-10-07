@@ -33,7 +33,7 @@ git tag v1.0.0
 git push origin v1.0.0
 ```
 
-GitHub Actions publishes the NSIS installer. Stable link:
+GitHub Actions (`.github/workflows/release-launcher.yml`) publishes the NSIS installer. Pushing that workflow needs a token with the `workflow` scope (`gh auth refresh -s workflow`). Stable link:
 
 `https://github.com/Josheyerr/lunar-revamped-launcher/releases/latest/download/LunarRevampedSetup.exe`
 
