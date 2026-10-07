@@ -100,11 +100,19 @@ export function PlayPage() {
         </article>
         <article className="glass rounded-2xl p-4">
           <h2 className="text-sm font-semibold">Account</h2>
-          {login?.state === 'waiting' ? (
+          {login?.state === 'waiting' || login?.state === 'starting' ? (
             <p className="mt-2 text-sm">
-              Code <span className="font-semibold">{login.code}</span> at {login.url}
+              {login.message}
+              {login.code ? (
+                <>
+                  {' '}
+                  Code <span className="font-semibold">{login.code}</span>
+                </>
+              ) : null}
             </p>
           ) : null}
+          {login?.state === 'error' ? <p className="mt-2 text-sm text-red-300">{login.message}</p> : null}
+          {login?.state === 'success' ? <p className="mt-2 text-sm">{login.message}</p> : null}
           <div className="mt-2 flex gap-2">
             <button
               className="rounded-lg px-3 py-1 text-sm text-white"

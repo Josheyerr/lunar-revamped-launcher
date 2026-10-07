@@ -15,7 +15,15 @@ function Boot() {
     const offs = [
       window.lunar.on(IpcChannel.console, (payload) => pushConsole(payload as ConsoleLine)),
       window.lunar.on(IpcChannel.progress, (payload) => useApp.setState({ progress: payload as DownloadProgress })),
-      window.lunar.on(IpcChannel.authProgress, (payload) => useApp.setState({ login: payload as MicrosoftLoginState })),
+      window.lunar.on(IpcChannel.authProgress, (payload) => {
+        const next = payload as MicrosoftLoginState
+        useApp.setState({ login: next })
+        if (next.state === 'success') {
+          useApp.getState().toast(next.message || 'Account added')
+          void refresh()
+        }
+        if (next.state === 'error') useApp.getState().toast(next.message)
+      }),
       window.lunar.on(IpcChannel.launchState, (payload) => {
         const launch = payload as LaunchState
         const snap = useApp.getState().snap

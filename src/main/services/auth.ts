@@ -1,14 +1,15 @@
 import { createHash } from 'node:crypto'
 import fs from 'node:fs'
 import path from 'node:path'
+import { shell } from 'electron'
 import { MS_CLIENT_ID } from '../../shared/manifest'
 import type { Account, AccountPublic, MicrosoftLoginState } from '../../shared/types'
 import { IpcChannel } from '../../shared/ipc'
 import { emit } from '../bus'
 import { loadStore, updateStore } from '../store'
 
-const DEVICE = 'https://login.microsoftonline.com/consumers/oauth2/v2.0/devicecode'
-const TOKEN = 'https://login.microsoftonline.com/consumers/oauth2/v2.0/token'
+const DEVICE = 'https://login.live.com/oauth20_connect.srf'
+const TOKEN = 'https://login.live.com/oauth20_token.srf'
 const XBL = 'https://user.auth.xboxlive.com/user/authenticate'
 const XSTS = 'https://xsts.auth.xboxlive.com/xsts/authorize'
 const MC_LOGIN = 'https://api.minecraftservices.com/authentication/login_with_xbox'
@@ -155,11 +156,18 @@ async function postJson(url: string, body: unknown, headers: Record<string, stri
     body: JSON.stringify(body)
   })
   const json = (await response.json()) as Record<string, unknown>
-  if (!response.ok) {
-    const message = typeof json.errorMessage === 'string' ? json.errorMessage : `HTTP ${response.status}`
-    throw new Error(message)
-  }
+  if (!response.ok) throw new Error(xboxMessage(json, response.status))
   return json
+}
+
+function xboxMessage(json: Record<string, unknown>, status: number): string {
+  const code = Number(json.XErr ?? 0)
+  if (code === 2148916233) return 'This Microsoft account has no Xbox profile. Open xbox.com once, then try again.'
+  if (code === 2148916235) return 'Xbox Live is not available for this account country.'
+  if (code === 2148916238) return 'This account is a child account and has to be added to a family first.'
+  if (typeof json.errorMessage === 'string') return json.errorMessage
+  if (typeof json.Message === 'string' && json.Message) return json.Message
+  return `HTTP ${status}`
 }
 
 export function startMicrosoftLogin(): void {
@@ -174,11 +182,17 @@ export function startMicrosoftLogin(): void {
 async function runMicrosoft(): Promise<void> {
   const device = await postForm(DEVICE, {
     client_id: MS_CLIENT_ID,
-    scope: 'XboxLive.signin offline_access'
+    scope: 'service::user.auth.xboxlive.com::MBI_SSL',
+    response_type: 'device_code'
   })
+  if (typeof device.error === 'string') {
+    throw new Error(String(device.error_description ?? device.error))
+  }
   const deviceCode = String(device.device_code ?? '')
   const userCode = String(device.user_code ?? '')
-  const verification = String(device.verification_uri ?? 'https://microsoft.com/link')
+  const verification = String(device.verification_uri ?? device.verification_url ?? 'https://www.microsoft.com/link')
+  if (!deviceCode || !userCode) throw new Error('Microsoft did not return a sign-in code.')
+  void shell.openExternal(verification)
   const interval = Number(device.interval ?? 5)
   const expiresIn = Number(device.expires_in ?? 900)
   setLogin({
@@ -186,7 +200,7 @@ async function runMicrosoft(): Promise<void> {
     code: userCode,
     url: verification,
     username: '',
-    message: `Enter ${userCode} at ${verification}`
+    message: `Minecraft sign-in. Enter ${userCode} in the browser window.`
   })
 
   const deadline = Date.now() + expiresIn * 1000
@@ -224,7 +238,7 @@ async function runMicrosoft(): Promise<void> {
   })
 
   const xbl = await postJson(XBL, {
-    Properties: { AuthMethod: 'RPS', SiteName: 'user.auth.xboxlive.com', RpsTicket: `d=${msToken}` },
+    Properties: { AuthMethod: 'RPS', SiteName: 'user.auth.xboxlive.com', RpsTicket: `t=${msToken}` },
     RelyingParty: 'http://auth.xboxlive.com',
     TokenType: 'JWT'
   })
