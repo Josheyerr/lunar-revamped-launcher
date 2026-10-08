@@ -66,7 +66,7 @@ export async function listJava(): Promise<JavaRuntime[]> {
   for (const file of candidates()) {
     const source: JavaRuntime['source'] = file.includes(`${path.sep}runtimes${path.sep}`) ? 'bundled' : 'detected'
     const info = await describe(file, source)
-    if (info && info.major >= 17) runtimes.push(info)
+    if (info && info.major >= 8) runtimes.push(info)
   }
   return runtimes
 }
@@ -74,14 +74,14 @@ export async function listJava(): Promise<JavaRuntime[]> {
 export async function testJava(javaPath: string): Promise<JavaRuntime> {
   const info = await describe(javaPath, 'custom')
   if (!info) throw new Error('Could not run that Java executable.')
-  if (info.major < 17) throw new Error(`Java ${info.version} is too old. Lunar Revamped needs 17 or newer.`)
+  if (info.major < 8) throw new Error(`Java ${info.version} is too old. Lunar Revamped needs 8 or newer.`)
   return info
 }
 
 export async function ensureJava(preferred: string): Promise<JavaRuntime> {
   if (preferred) {
     const custom = await describe(preferred, 'custom')
-    if (custom && custom.major >= 17) return custom
+    if (custom && custom.major >= 8) return custom
   }
   const found = await listJava()
   const best = found.sort((a, b) => b.major - a.major)[0]

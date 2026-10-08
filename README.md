@@ -55,4 +55,4 @@ Settings and instances live in `%APPDATA%\.lunar-revamped\`.
 
 ## Java
 
-The launcher uses Java 17+ (Temurin 21 is downloaded into the app data folder if nothing suitable is installed).
+The launcher uses Java 8+ (Temurin 21 is downloaded into the app data folder if nothing suitable is installed).
