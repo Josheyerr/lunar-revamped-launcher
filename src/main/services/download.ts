@@ -313,6 +313,7 @@ async function latestRelease(repo: string): Promise<GithubRelease | null> {
   const task = loadLatestRelease(repo)
     .then((value) => {
       releaseCache = { repo, at: Date.now(), value }
+      rememberRelease(value)
       return value
     })
     .finally(() => {
@@ -357,39 +358,45 @@ export function runtimeRoot(): string {
   return installed
 }
 
-export async function clientStatus(): Promise<ClientStatus> {
+let cachedNewsItems: NewsItem[] = []
+let remoteRefreshScheduled = false
+
+function newsFromRelease(release: GithubRelease | null): NewsItem[] {
+  if (!release) return []
+  return [
+    {
+      title: release.tag_name ?? 'Client',
+      body: release.body ?? 'No notes.',
+      url: release.html_url ?? '',
+      publishedAt: release.published_at ?? ''
+    }
+  ]
+}
+
+function rememberRelease(release: GithubRelease | null): void {
+  cachedNewsItems = newsFromRelease(release)
+}
+
+function statusFromLocal(remote = '', changelog = '', errorMessage = ''): ClientStatus {
   const data = loadStore()
   const root = runtimeRoot()
-  let remote = ''
-  let changelog = ''
+  const hasLibs = fs.existsSync(path.join(root, 'libs'))
+  let kind: ClientStatus['kind'] = hasLibs ? 'ready' : 'missing'
   let message = 'Ready'
-  let kind: ClientStatus['kind'] = fs.existsSync(path.join(root, 'libs')) ? 'ready' : 'missing'
-  try {
-    const release = await latestRelease(CLIENT_REPO)
-    remote = (release?.tag_name ?? '').replace(/^v/, '')
-    changelog = release?.body ?? ''
-    if (!data.installedClientVersion && configuredDevRuntime()) {
-      kind = 'ready'
-      message = 'Using local development runtime'
-    } else if (remote && data.installedClientVersion && remote !== data.installedClientVersion) {
-      kind = 'update'
-      message = `Update available: ${remote}`
-    } else if (kind === 'missing') {
-      message = remote ? `Install ${remote}` : 'No client release published yet'
-    } else {
-      message = data.installedClientVersion ? `Installed ${data.installedClientVersion}` : 'Local runtime'
-    }
-    if (installingClient) {
-      kind = 'downloading'
-      message = remote ? `Downloading ${remote}` : 'Downloading client'
-    }
-  } catch (error) {
-    kind = installingClient ? 'downloading' : fs.existsSync(path.join(root, 'libs')) ? 'ready' : 'error'
-    message = installingClient
-      ? 'Downloading client'
-      : error instanceof Error
-        ? error.message
-        : 'Could not check for updates'
+  if (installingClient) {
+    kind = 'downloading'
+    message = remote ? `Downloading ${remote}` : 'Downloading client'
+  } else if (!data.installedClientVersion && configuredDevRuntime() && hasLibs) {
+    kind = 'ready'
+    message = 'Using local development runtime'
+  } else if (remote && data.installedClientVersion && remote !== data.installedClientVersion) {
+    kind = 'update'
+    message = `Update available: ${remote}`
+  } else if (kind === 'missing') {
+    message = errorMessage || (remote ? `Install ${remote}` : 'No client release published yet')
+    if (errorMessage && !hasLibs) kind = 'error'
+  } else {
+    message = data.installedClientVersion ? `Installed ${data.installedClientVersion}` : 'Local runtime'
   }
   return {
     kind,
@@ -401,20 +408,53 @@ export async function clientStatus(): Promise<ClientStatus> {
   }
 }
 
-export async function news(): Promise<NewsItem[]> {
+export function localClientStatus(): ClientStatus {
+  const release = releaseCache?.value ?? null
+  const remote = (release?.tag_name ?? '').replace(/^v/, '')
+  const changelog = release?.body ?? ''
+  return statusFromLocal(remote, changelog)
+}
+
+export function cachedNews(): NewsItem[] {
+  return cachedNewsItems
+}
+
+export function scheduleClientStatusRefresh(): void {
+  if (releaseCache && Date.now() - releaseCache.at < RELEASE_CACHE_MS) return
+  if (remoteRefreshScheduled) return
+  remoteRefreshScheduled = true
+  void clientStatus()
+    .then((status) => emit(IpcChannel.clientStatus, status))
+    .finally(() => {
+      remoteRefreshScheduled = false
+    })
+}
+
+export async function clientStatus(): Promise<ClientStatus> {
   try {
     const release = await latestRelease(CLIENT_REPO)
-    if (!release) return []
-    return [
-      {
-        title: release.tag_name ?? 'Client',
-        body: release.body ?? 'No notes.',
-        url: release.html_url ?? '',
-        publishedAt: release.published_at ?? ''
-      }
-    ]
+    rememberRelease(release)
+    const remote = (release?.tag_name ?? '').replace(/^v/, '')
+    return statusFromLocal(remote, release?.body ?? '')
+  } catch (error) {
+    const detail = error instanceof Error ? error.message : 'Could not check for updates'
+    if (fs.existsSync(path.join(runtimeRoot(), 'libs'))) {
+      return statusFromLocal('', '', detail)
+    }
+    return statusFromLocal('', '', installingClient ? 'Downloading client' : detail)
+  }
+}
+
+export async function news(): Promise<NewsItem[]> {
+  if (cachedNewsItems.length && releaseCache && Date.now() - releaseCache.at < RELEASE_CACHE_MS) {
+    return cachedNewsItems
+  }
+  try {
+    const release = await latestRelease(CLIENT_REPO)
+    rememberRelease(release)
+    return cachedNewsItems
   } catch {
-    return []
+    return cachedNewsItems
   }
 }
 
@@ -441,14 +481,15 @@ export async function ensureClientBeforePlay(): Promise<ClientPlayPrepare> {
   const installedReady = libsReady(installedVersion ? path.join(folders.versions(), installedVersion) : '')
   const devReady = libsReady(configuredDevRuntime())
 
+  if (installedReady || devReady) {
+    scheduleClientStatusRefresh()
+    return { warning: '' }
+  }
+
   let release: GithubRelease | null
   try {
     release = await latestRelease(CLIENT_REPO)
   } catch (error) {
-    if (installedReady || devReady) {
-      const detail = error instanceof Error ? error.message : 'Could not check for client updates'
-      return { warning: `Could not check for client updates: ${detail}` }
-    }
     throw error instanceof Error ? error : new Error('Could not check for client updates')
   }
 
@@ -456,24 +497,12 @@ export async function ensureClientBeforePlay(): Promise<ClientPlayPrepare> {
   const remote = releaseVersion(ready)
   const hasZip = releaseHasZip(ready)
 
-  if (installedReady && remote && remote !== installedVersion) {
-    if (!hasZip) return { warning: 'Client release has no zip.' }
-    const zip = ready?.assets?.find((asset) => asset.name.endsWith('.zip'))
-    beginInstallProgress(remote, zip?.name ?? publicZipName(CLIENT_REPO, remote), zip?.size ?? 0)
-    await installLatestClient(ready ?? undefined)
-    return { warning: '' }
-  }
-
-  if (installedReady) return { warning: '' }
-
   if (remote && hasZip) {
     const zip = ready?.assets?.find((asset) => asset.name.endsWith('.zip'))
     beginInstallProgress(remote, zip?.name ?? publicZipName(CLIENT_REPO, remote), zip?.size ?? 0)
     await installLatestClient(ready ?? undefined)
     return { warning: '' }
   }
-
-  if (devReady) return { warning: '' }
 
   throw new Error(remote ? 'Client release has no zip.' : 'No client release published yet')
 }
@@ -751,6 +780,20 @@ function libAllowed(lib: MojangLibrary): boolean {
   return allow
 }
 
+async function mapPool<T>(items: T[], concurrency: number, worker: (item: T) => Promise<void>): Promise<void> {
+  if (!items.length) return
+  let next = 0
+  const run = async () => {
+    for (;;) {
+      const index = next
+      next += 1
+      if (index >= items.length) return
+      await worker(items[index])
+    }
+  }
+  await Promise.all(Array.from({ length: Math.min(concurrency, items.length) }, () => run()))
+}
+
 export async function ensureVanilla(runtime: string): Promise<void> {
   const versionJar = path.join(runtime, 'libs', 'vanilla', 'versions', MC_VERSION, `${MC_VERSION}.jar`)
   if (fs.existsSync(versionJar)) return
@@ -771,9 +814,9 @@ export async function ensureVanilla(runtime: string): Promise<void> {
   const libraries = meta.libraries.filter(libAllowed)
   let overall = 0
   const overallTotal = libraries.reduce((sum, lib) => sum + (lib.downloads?.artifact?.size ?? 0), 0)
-  for (const lib of libraries) {
+  await mapPool(libraries, 8, async (lib) => {
     const artifact = lib.downloads?.artifact
-    if (!artifact?.url || !artifact.path) continue
+    if (!artifact?.url || !artifact.path) return
     const dest = path.join(libRoot, 'libraries', artifact.path)
     if (!fs.existsSync(dest)) {
       await downloadFile(artifact.url, dest, {
@@ -784,16 +827,16 @@ export async function ensureVanilla(runtime: string): Promise<void> {
       })
     }
     overall += artifact.size ?? 0
-  }
+  })
   const indexPath = path.join(libRoot, 'assets', 'indexes', `${meta.assetIndex.id}.json`)
   await downloadFile(meta.assetIndex.url, indexPath, { label: 'Asset index', sha1: meta.assetIndex.sha1 })
   const index = JSON.parse(fs.readFileSync(indexPath, 'utf8')) as { objects: Record<string, { hash: string }> }
   const objects = Object.values(index.objects)
-  for (const object of objects) {
+  await mapPool(objects, 8, async (object) => {
     const hash = object.hash
     const dest = path.join(libRoot, 'assets', 'objects', hash.slice(0, 2), hash)
-    if (fs.existsSync(dest)) continue
+    if (fs.existsSync(dest)) return
     const url = `https://resources.download.minecraft.net/${hash.slice(0, 2)}/${hash}`
     await downloadFile(url, dest, { label: hash, sha1: hash })
-  }
+  })
 }

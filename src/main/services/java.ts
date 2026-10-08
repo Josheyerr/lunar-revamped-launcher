@@ -26,6 +26,11 @@ const GRAAL_WIN_SHA256 = 'e17b7bead097bf372a5c75df17815b0a2f30b777a019d25eff7706
 const GRAAL_WIN_ZIP = 'graalvm-community-jdk-21.0.2_windows-x64_bin.zip'
 
 let installPromise: Promise<JavaRuntime> | null = null
+const describeCache = new Map<string, JavaRuntime>()
+
+function javaCacheKey(javaPath: string): string {
+  return path.normalize(javaPath)
+}
 
 export function memoryMb(): { totalMb: number; freeMb: number } {
   return {
@@ -51,6 +56,8 @@ function packagedKitRoot(): string {
 
 async function describe(javaPath: string, source: JavaRuntime['source']): Promise<JavaRuntime | null> {
   if (!javaPath || !fs.existsSync(javaPath)) return null
+  const cached = describeCache.get(javaCacheKey(javaPath))
+  if (cached) return { ...cached, source }
   try {
     const { stderr, stdout } = await execFileAsync(javaPath, ['-version'], { windowsHide: true })
     const text = `${stderr}\n${stdout}`
@@ -61,13 +68,15 @@ async function describe(javaPath: string, source: JavaRuntime['source']): Promis
     const majorMatch = /version "1\.(\d+)/.exec(text) ?? /version "(\d+)/.exec(text)
     const major = majorMatch ? Number(majorMatch[1]) : 0
     const arch = /64-Bit/.test(text) ? 'x64' : os.arch()
-    return {
+    const info: JavaRuntime = {
       path: javaPath,
       version,
       major: numeric.startsWith('1.') ? major : Number(numeric.split('.')[0] ?? major),
       arch,
       source
     }
+    describeCache.set(javaCacheKey(javaPath), info)
+    return info
   } catch {
     return null
   }
@@ -130,6 +139,7 @@ export async function listJava(): Promise<JavaRuntime[]> {
 }
 
 export async function testJava(javaPath: string): Promise<JavaRuntime> {
+  describeCache.delete(javaCacheKey(javaPath))
   const info = await describe(javaPath, 'custom')
   if (!info) throw new Error('Could not run that Java executable.')
   if (info.major < MIN_JAVA_MAJOR) {

@@ -93,6 +93,30 @@ function mergedSettings(): LaunchSettings {
   return { ...data.settings, ...instance?.settings }
 }
 
+function portListening(port: number): Promise<boolean> {
+  return new Promise((resolve) => {
+    const socket = net.connect({ host: '127.0.0.1', port })
+    const finish = (ok: boolean) => {
+      socket.removeAllListeners()
+      socket.destroy()
+      resolve(ok)
+    }
+    socket.setTimeout(100)
+    socket.once('connect', () => finish(true))
+    socket.once('error', () => finish(false))
+    socket.once('timeout', () => finish(false))
+  })
+}
+
+async function waitForLocalPorts(ports: number[], timeoutMs = 800): Promise<void> {
+  const deadline = Date.now() + timeoutMs
+  while (Date.now() < deadline) {
+    const ready = await Promise.all(ports.map(portListening))
+    if (ready.every(Boolean)) return
+    await new Promise((resolve) => setTimeout(resolve, 50))
+  }
+}
+
 function freePort(start: number, left = 40): Promise<number> {
   return new Promise((resolve, reject) => {
     const server = net.createServer()
@@ -238,7 +262,6 @@ async function buildPlan(prepare: boolean): Promise<Plan> {
     '-Dichor.usingIsolatedProfiles=true',
     `-Dichor.logsFile=${path.join(logs, 'ichor-boot.log')}`,
     `-Djava.library.path=${natives}`,
-    '-Dichor.prebakeClasses=false',
     `-Dlog4j.configurationFile=${logUri}`,
     `-DserviceOverrideAuthenticator=ws://127.0.0.1:${auth}`,
     `-DserviceOverrideAssetServer=ws://127.0.0.1:${asset}`,
@@ -401,7 +424,7 @@ export async function startGame(): Promise<LaunchState> {
     env: plan.env
   })
   helpers = fake
-  await new Promise((resolve) => setTimeout(resolve, 800))
+  await waitForLocalPorts([plan.ipc, plan.asset, plan.auth])
   const javaBin = plan.wrapper ? plan.wrapper : plan.java
   const javaArgs = plan.wrapper ? [plan.java, ...plan.args] : plan.args
   fs.writeFileSync(plan.logFile, '')

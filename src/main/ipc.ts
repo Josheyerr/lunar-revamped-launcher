@@ -12,7 +12,14 @@ import {
   selectAccount,
   startMicrosoftLogin
 } from './services/auth'
-import { clientStatus, ensureClientBeforePlay, installLatestClient, news, rollbackClient } from './services/download'
+import {
+  cachedNews,
+  ensureClientBeforePlay,
+  installLatestClient,
+  localClientStatus,
+  rollbackClient,
+  scheduleClientStatusRefresh
+} from './services/download'
 import { createInstance, deleteInstance, listInstances, patchInstanceSettings, selectInstance } from './services/instances'
 import { listJava, memoryMb, testJava } from './services/java'
 import { consoleLines, launchState, previewCommand, startGame, stopGame } from './services/launch'
@@ -27,16 +34,17 @@ async function snapshot(): Promise<AppSnapshot> {
   const data = loadStore()
   const accounts = publicAccounts()
   const instances = listInstances()
+  scheduleClientStatusRefresh()
   return {
     accounts: accounts.accounts,
     activeAccountId: accounts.activeAccountId,
     instances: instances.instances,
     activeInstanceId: instances.activeInstanceId,
     settings: data.settings,
-    client: await clientStatus(),
+    client: localClientStatus(),
     launch: launchState(),
     memory: memoryMb(),
-    news: await news(),
+    news: cachedNews(),
     updater: updaterState()
   }
 }
