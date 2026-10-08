@@ -1,9 +1,10 @@
 import { safeStorage } from 'electron'
 import fs from 'node:fs'
+import path from 'node:path'
 import Store from 'electron-store'
 import { DEFAULT_ACCENT } from '../shared/jvm'
 import type { Account, Instance, LaunchSettings } from '../shared/types'
-import { folders } from './paths'
+import { bundledPvpJavaPath, folders, PVP_JAVA_DIR } from './paths'
 
 export interface Persisted {
   accounts: Account[]
@@ -17,12 +18,23 @@ export interface Persisted {
 
 const REMOTE_RUNTIME = 'F:\\Projects\\LunarClientremake-main'
 
+function resolveDefaultJava(): string {
+  const bundled = bundledPvpJavaPath()
+  if (fs.existsSync(bundled)) return bundled
+  // Dev fallback before first bundled install completes.
+  const homeKit = path.join(process.env.USERPROFILE || '', 'mc-pvp-java17', 'bin', 'java.exe')
+  if (fs.existsSync(homeKit)) return homeKit
+  return ''
+}
+
 export function defaultSettings(): LaunchSettings {
   const dev = process.env.LUNAR_REVAMPED_RUNTIME || (fs.existsSync(REMOTE_RUNTIME) ? REMOTE_RUNTIME : '')
+  const javaPath = resolveDefaultJava()
   return {
     minRamMb: 512,
     maxRamMb: 2048,
     jvmArgs: '',
+    // Bundled PVP forwarder already injects pvp-client.args.
     jvmPreset: 'default',
     gameArgs: '',
     width: 1280,
@@ -39,7 +51,8 @@ export function defaultSettings(): LaunchSettings {
     showConsole: true,
     keepOpen: true,
     onLaunch: 'stay',
-    javaPath: '',
+    javaPath,
+    pvpKitPath: '',
     theme: 'dark',
     accent: DEFAULT_ACCENT,
     devRuntime: dev
@@ -112,6 +125,16 @@ function db(): Store<Persisted> {
   return disk
 }
 
+function shouldAdoptDefaultJava(current: string, bundled: string): boolean {
+  if (!current) return true
+  if (!bundled) return false
+  if (path.normalize(current) === path.normalize(bundled)) return false
+  if (/mc-pvp-java(?!17)/i.test(current)) return true
+  if (current.includes(`${path.sep}runtimes${path.sep}temurin-21`)) return true
+  if (current.includes(`${path.sep}runtimes${path.sep}${PVP_JAVA_DIR}`)) return true
+  return false
+}
+
 export function loadStore(): Persisted {
   if (cache) return cache
   const raw = structuredClone(db().store)
@@ -120,7 +143,13 @@ export function loadStore(): Persisted {
     accessToken: open(account.accessToken),
     refreshToken: open(account.refreshToken)
   }))
-  raw.settings = { ...defaultSettings(), ...raw.settings }
+  const defaults = defaultSettings()
+  raw.settings = { ...defaults, ...raw.settings }
+  const bundled = resolveDefaultJava()
+  if (bundled && shouldAdoptDefaultJava((raw.settings.javaPath || '').trim(), bundled)) {
+    raw.settings.javaPath = bundled
+    raw.settings.pvpKitPath = ''
+  }
   cache = raw
   return raw
 }

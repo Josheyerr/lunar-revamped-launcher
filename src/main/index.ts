@@ -1,7 +1,8 @@
 import { app } from 'electron'
 import { registerIpc } from './ipc'
 import { loadStore } from './store'
-import { checkLauncherUpdate } from './services/updater'
+import { bootBundledPvpJava } from './services/java'
+import { bootAutoUpdate } from './services/updater'
 import { createWindow, ensureTray, getWindow, markQuitting } from './window'
 
 const gotLock = app.requestSingleInstanceLock()
@@ -12,7 +13,8 @@ app.whenReady().then(() => {
   registerIpc()
   createWindow()
   if (loadStore().settings.onLaunch === 'tray') ensureTray()
-  void checkLauncherUpdate()
+  void bootBundledPvpJava()
+  void bootAutoUpdate()
 })
 
 app.on('before-quit', () => markQuitting())

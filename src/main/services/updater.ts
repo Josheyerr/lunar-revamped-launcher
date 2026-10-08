@@ -67,6 +67,16 @@ export function checkLauncherUpdate(manual = false): Promise<UpdaterState> {
   return inflight
 }
 
+/** Startup path: check GitHub, then download+install when a packaged update exists. */
+export async function bootAutoUpdate(): Promise<UpdaterState> {
+  const checked = await checkLauncherUpdate(false)
+  if (!app.isPackaged) return checked
+  if (checked.phase === 'available' || checked.phase === 'downloaded') {
+    return installLauncherUpdate()
+  }
+  return checked
+}
+
 export async function openUpdateDownload(): Promise<void> {
   await shell.openExternal(INSTALLER_URL)
 }
@@ -102,7 +112,22 @@ async function checkGithubRelease(): Promise<UpdaterState> {
 async function checkPackagedRelease(): Promise<UpdaterState> {
   configureAutoUpdater()
   try {
-    await autoUpdater.checkForUpdates()
+    const result = await autoUpdater.checkForUpdates()
+    const latest = result?.updateInfo?.version?.trim() ?? ''
+    if (latest && compareVersions(latest, app.getVersion()) > 0) {
+      if (
+        state.phase !== 'available' &&
+        state.phase !== 'downloading' &&
+        state.phase !== 'downloaded' &&
+        state.phase !== 'installing'
+      ) {
+        return publish('available', { latestVersion: latest, percent: 0 })
+      }
+      return updaterState()
+    }
+    if (state.phase === 'checking' || state.phase === 'idle') {
+      return publish('current', { latestVersion: latest || app.getVersion(), percent: 0 })
+    }
     return updaterState()
   } catch (error) {
     if (state.phase === 'error') return updaterState()
@@ -249,7 +274,8 @@ function shouldNotify(phase: UpdaterPhase, manual: boolean, previous: UpdaterPha
     case 'current':
       return manual
     case 'available':
-      return !app.isPackaged
+      // Packaged builds auto-install on boot; still surface the status once.
+      return true
     case 'downloaded':
     case 'installing':
     case 'error':

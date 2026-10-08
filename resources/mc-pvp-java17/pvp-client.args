@@ -1,0 +1,32 @@
+# GraalVM CE 21 kit for Lunar Revamped. Point launcher Java at bin\java.exe.
+# JVM preset "pvp" in the launcher also applies these; avoid double-pasting.
+# Dropped Java 8-only flags removed in JDK 20/21 (G1ConcRSHotCardLimit, G1ConcRefinementServiceIntervalMillis).
+-XX:+UnlockExperimentalVMOptions
+-XX:+UnlockDiagnosticVMOptions
+-XX:+UseG1GC
+-XX:MaxGCPauseMillis=35
+-XX:G1HeapRegionSize=8M
+-XX:G1NewSizePercent=20
+-XX:G1MaxNewSizePercent=40
+-XX:G1ReservePercent=15
+-XX:SurvivorRatio=32
+-XX:G1MixedGCCountTarget=4
+-XX:G1HeapWastePercent=10
+-XX:InitiatingHeapOccupancyPercent=15
+-XX:G1RSetUpdatingPauseTimePercent=0
+-XX:MaxTenuringThreshold=4
+-XX:G1SATBBufferEnqueueingThresholdPercent=30
+-XX:G1ConcMarkStepDurationMillis=5.0
+-XX:GCTimeRatio=99
+-XX:+ExplicitGCInvokesConcurrent
+-XX:+ParallelRefProcEnabled
+-XX:+AlwaysPreTouch
+-XX:+PerfDisableSharedMem
+-XX:+UseStringDeduplication
+-XX:ReservedCodeCacheSize=320M
+-XX:+UseJVMCICompiler
+-XX:+EnableJVMCI
+-XX:+UseJVMCINativeLibrary
+-XX:+EagerJVMCI
+-Dgraal.CompilerConfiguration=community
+-Djava.net.preferIPv4Stack=true

@@ -55,4 +55,4 @@ Settings and instances live in `%APPDATA%\.lunar-revamped\`.
 
 ## Java
 
-The launcher uses Java 8+ (Temurin 21 is downloaded into the app data folder if nothing suitable is installed).
+The launcher ships a small PVP Java kit (timer agent + forwarder) and downloads **GraalVM CE 21** on first launch into `%APPDATA%\.lunar-revamped\runtimes\`. That becomes the default Java. Temurin 21 remains a fallback if the Graal download fails. Java 8 cannot run the client.

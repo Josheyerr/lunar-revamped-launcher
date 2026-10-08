@@ -35,6 +35,37 @@ export function presetArgs(preset: JvmPreset, major: number): string {
       return major >= 21
         ? '-XX:+UseZGC -XX:+ZGenerational -Djava.net.preferIPv4Stack=true'
         : '-XX:+UseG1GC -Djava.net.preferIPv4Stack=true'
+    case 'pvp':
+      // G1 timing profile from mc-pvp-java / mc-pvp-java17. Safe on HotSpot 17+.
+      // Graal JVMCI flags are added at launch only when the selected JDK is Graal 17+.
+      // Skip this preset when javaPath is the mc-pvp-java17 forwarder (it already injects these).
+      return [
+        '-XX:+UnlockExperimentalVMOptions',
+        '-XX:+UnlockDiagnosticVMOptions',
+        '-XX:+UseG1GC',
+        '-XX:MaxGCPauseMillis=35',
+        '-XX:G1HeapRegionSize=8M',
+        '-XX:G1NewSizePercent=20',
+        '-XX:G1MaxNewSizePercent=40',
+        '-XX:G1ReservePercent=15',
+        '-XX:SurvivorRatio=32',
+        '-XX:G1MixedGCCountTarget=4',
+        '-XX:G1HeapWastePercent=10',
+        '-XX:InitiatingHeapOccupancyPercent=15',
+        '-XX:G1RSetUpdatingPauseTimePercent=0',
+        '-XX:MaxTenuringThreshold=4',
+        '-XX:G1SATBBufferEnqueueingThresholdPercent=30',
+        '-XX:G1ConcMarkStepDurationMillis=5.0',
+        // G1ConcRSHotCardLimit / G1ConcRefinementServiceIntervalMillis removed in JDK 20/21.
+        '-XX:GCTimeRatio=99',
+        '-XX:+ExplicitGCInvokesConcurrent',
+        '-XX:+ParallelRefProcEnabled',
+        '-XX:+AlwaysPreTouch',
+        '-XX:+PerfDisableSharedMem',
+        '-XX:+UseStringDeduplication',
+        '-XX:ReservedCodeCacheSize=320M',
+        '-Djava.net.preferIPv4Stack=true'
+      ].join(' ')
     case 'custom':
       return ''
     default: {

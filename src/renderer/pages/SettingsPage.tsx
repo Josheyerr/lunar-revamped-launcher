@@ -2,7 +2,7 @@ import { useState } from 'react'
 import type { JvmPreset, LaunchSettings } from '@shared/types'
 import { useApp } from '../stores/appStore'
 
-const presets: JvmPreset[] = ['default', 'aikar', 'low', 'zgc', 'custom']
+const presets: JvmPreset[] = ['default', 'aikar', 'low', 'zgc', 'pvp', 'custom']
 
 export function SettingsPage() {
   const snap = useApp((s) => s.snap)
@@ -84,9 +84,18 @@ export function SettingsPage() {
         </select>
       </label>
       <label className="mt-2 block text-sm">Accent <input type="color" value={settings.accent} onChange={(e) => save({ accent: e.target.value })} /></label>
-      <label className="mt-3 block text-sm">Java
+      <label className="mt-3 block text-sm">Java (17+ required)
         <input className="mt-1 w-full rounded-xl border border-white/10 bg-transparent px-3 py-2" value={settings.javaPath} onChange={(e) => save({ javaPath: e.target.value })} />
       </label>
+      <p className="mt-1 text-xs text-[var(--muted)]">
+        Default is the launcher PVP Java (GraalVM CE 21 + timer agent). It installs on first launch into %APPDATA%\.lunar-revamped\runtimes\mc-pvp-java17. Leave blank / use that path unless you need a custom JDK 17+.
+      </p>
+      <label className="mt-3 block text-sm">PVP kit (optional — leave empty with bundled PVP Java)
+        <input className="mt-1 w-full rounded-xl border border-white/10 bg-transparent px-3 py-2" value={settings.pvpKitPath} onChange={(e) => save({ pvpKitPath: e.target.value })} placeholder="Only needed for a plain JDK" />
+      </label>
+      <p className="mt-1 text-xs text-[var(--muted)]">
+        Bundled PVP Java already loads the timer agent and G1 flags. Only set a kit folder if you point Java at a plain JDK instead.
+      </p>
       <div className="mt-2 flex gap-2">
         <button className="rounded-xl border border-white/15 px-3 py-1 text-sm" onClick={() => void window.lunar.browseJava().then((file) => file && save({ javaPath: file }))}>Browse</button>
         <button className="rounded-xl border border-white/15 px-3 py-1 text-sm" onClick={() => void window.lunar.testJava(settings.javaPath).then((info) => setJavaInfo(`${info.version} ${info.arch}`)).catch((e: unknown) => toast(e instanceof Error ? e.message : 'Test failed'))}>Test</button>

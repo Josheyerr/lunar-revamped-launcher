@@ -23,7 +23,7 @@ export interface MicrosoftLoginState {
   message: string
 }
 
-export type JvmPreset = 'default' | 'aikar' | 'low' | 'zgc' | 'custom'
+export type JvmPreset = 'default' | 'aikar' | 'low' | 'zgc' | 'pvp' | 'custom'
 
 export type OnLaunchBehavior = 'minimize' | 'tray' | 'stay'
 
@@ -48,6 +48,8 @@ export interface LaunchSettings {
   keepOpen: boolean
   onLaunch: OnLaunchBehavior
   javaPath: string
+  /** Optional timer-agent folder when not using the launcher-bundled PVP Java forwarder. */
+  pvpKitPath: string
   theme: 'dark' | 'light'
   accent: string
   devRuntime: string

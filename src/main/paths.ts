@@ -25,6 +25,14 @@ export const folders = {
   accounts: () => ensureDir(path.join(appDataRoot(), 'accounts'))
 }
 
+/** Installed under `%APPDATA%\.lunar-revamped\runtimes\`. */
+export const PVP_JAVA_DIR = 'mc-pvp-java17'
+export const GRAAL_RUNTIME_DIR = 'graalvm-ce-21'
+
+export function bundledPvpJavaPath(): string {
+  return path.join(folders.runtimes(), PVP_JAVA_DIR, 'bin', process.platform === 'win32' ? 'java.exe' : 'java')
+}
+
 export function instanceRoot(id: string): string {
   return ensureDir(path.join(folders.instances(), id))
 }

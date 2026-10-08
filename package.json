@@ -1,6 +1,6 @@
 {
   "name": "lunar-revamped-launcher",
-  "version": "1.0.6",
+  "version": "1.0.7",
   "private": true,
   "description": "Desktop launcher for Lunar Revamped (Minecraft 1.8.9)",
   "author": "Josheyerr",
@@ -13,6 +13,8 @@
     "dev": "npm run build:main && concurrently -k \"vite\" \"wait-on http://127.0.0.1:5173 && cross-env ELECTRON_DEV=1 electron .\"",
     "start": "npm run build && electron .",
     "dist": "npm run build && electron-builder --win",
+    "release:launcher": "node scripts/release-launcher.mjs",
+    "sync:pvp-java": "node scripts/sync-pvp-java-resources.mjs",
     "lint": "eslint src --ext .ts,.tsx",
     "format": "prettier --write \"src/**/*.{ts,tsx,css}\" \"scripts/**/*.mjs\""
   },

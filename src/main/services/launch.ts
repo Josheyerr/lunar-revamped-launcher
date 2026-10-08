@@ -4,7 +4,13 @@ import net from 'node:net'
 import path from 'node:path'
 import { parseArgs, presetArgs } from '../../shared/jvm'
 import { IpcChannel } from '../../shared/ipc'
-import type { CommandPreview, ConsoleLine, LaunchSettings, LaunchState } from '../../shared/types'
+import type {
+  CommandPreview,
+  ConsoleLine,
+  JavaRuntime,
+  LaunchSettings,
+  LaunchState
+} from '../../shared/types'
 import { emit } from '../bus'
 import { instanceRoot } from '../paths'
 import { loadStore } from '../store'
@@ -202,6 +208,9 @@ async function buildPlan(prepare: boolean): Promise<Plan> {
   const gameArgs = parseArgs(settings.gameArgs)
   if (gameArgs.error) throw new Error(gameArgs.error)
   const warnings = [...jvm.warnings, ...gameArgs.warnings]
+  const pvpExtras = pvpLaunchArgs(settings.pvpKitPath, java)
+  warnings.push(...pvpExtras.warnings)
+  jvm.args = [...pvpExtras.args, ...jvm.args]
   if (settings.maxRamMb > 8192 && java.arch !== 'x64' && !java.arch.includes('64')) {
     warnings.push('Max RAM is high for a 32-bit Java.')
   }
@@ -425,6 +434,56 @@ function findCrash(gameDir: string): string {
   const files = fs.readdirSync(dir).filter((name) => name.endsWith('.txt')).sort()
   const latest = files[files.length - 1]
   return latest ? path.join(dir, latest) : ''
+}
+
+/** True when javaPath is the mc-pvp-java(17) forwarder (sibling graalvm.path). */
+function isPvpKitForwarder(javaPath: string): boolean {
+  const dir = path.dirname(javaPath)
+  const root = path.basename(dir).toLowerCase() === 'bin' ? path.dirname(dir) : dir
+  return fs.existsSync(path.join(root, 'graalvm.path'))
+}
+
+/**
+ * Applies mc-pvp-java17 kit pieces that work on Java 17+:
+ * - timer-agent.jar (timeBeginPeriod(1) for 1ms Windows scheduling)
+ * - Graal CE/EE JVMCI flags when the selected JDK is already Graal 17+
+ *
+ * Skipped when javaPath is the kit forwarder (it already injects agent + pvp-client.args).
+ * The Java 8 Graal wrap cannot launch Genesis — use mc-pvp-java17 instead.
+ */
+function pvpLaunchArgs(
+  kitPath: string,
+  java: JavaRuntime
+): { args: string[]; warnings: string[] } {
+  const args: string[] = []
+  const warnings: string[] = []
+  if (isPvpKitForwarder(java.path)) {
+    return { args, warnings }
+  }
+  const kit = kitPath.trim()
+  if (kit) {
+    const agentJar = path.join(kit, 'timer-agent.jar')
+    const agentDll = path.join(kit, 'timer-agent.dll')
+    if (fs.existsSync(agentJar) && fs.existsSync(agentDll)) {
+      args.push(`-javaagent:${agentJar}`)
+    } else if (fs.existsSync(agentJar) || fs.existsSync(agentDll)) {
+      warnings.push('PVP kit is incomplete (need both timer-agent.jar and timer-agent.dll).')
+    } else if (fs.existsSync(kit)) {
+      warnings.push('PVP kit folder has no timer-agent; timings agent not loaded.')
+    }
+  }
+  const looksGraal = /graal/i.test(java.version) || /graal/i.test(java.path)
+  if (looksGraal && java.major >= 17) {
+    const community = /community|GraalVM CE/i.test(java.version) || /community/i.test(java.path)
+    args.push(
+      '-XX:+UseJVMCICompiler',
+      '-XX:+EnableJVMCI',
+      '-XX:+UseJVMCINativeLibrary',
+      '-XX:+EagerJVMCI',
+      `-Dgraal.CompilerConfiguration=${community ? 'community' : 'enterprise'}`
+    )
+  }
+  return { args, warnings }
 }
 
 export function stopGame(): void {
