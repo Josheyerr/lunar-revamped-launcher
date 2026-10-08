@@ -12,6 +12,10 @@ export function SettingsPage() {
   const [javaInfo, setJavaInfo] = useState('')
   if (!snap) return null
   const settings = snap.settings
+  const launcherUpdateLabel =
+    (snap.updater.phase === 'available' || snap.updater.phase === 'downloaded') && snap.updater.latestVersion
+      ? `Update to ${snap.updater.latestVersion}`
+      : ''
   const save = (patch: Partial<LaunchSettings>) => {
     void window.lunar.saveSettings({ ...settings, ...patch }).then(() => refresh()).catch((e: unknown) => toast(e instanceof Error ? e.message : 'Save failed'))
   }
@@ -110,9 +114,25 @@ export function SettingsPage() {
         </div>
       ) : null}
       <div className="mt-4">
-        <p className="text-xs text-[var(--muted)]">
-          Launcher {snap.updater.version}: {snap.updater.status || 'Not checked yet'}
-        </p>
+        <div className="flex flex-wrap items-center gap-3">
+          <p className="text-xs text-[var(--muted)]">
+            Launcher {snap.updater.version}: {snap.updater.status || 'Not checked yet'}
+          </p>
+          {launcherUpdateLabel ? (
+            <button
+              className="rounded-xl px-3 py-1 text-sm text-white"
+              style={{ background: 'var(--accent)' }}
+              onClick={() =>
+                void window.lunar
+                  .installUpdate()
+                  .then((updater) => useApp.getState().applyUpdater(updater))
+                  .catch((error: unknown) => toast(error instanceof Error ? error.message : 'Could not install update'))
+              }
+            >
+              {launcherUpdateLabel}
+            </button>
+          ) : null}
+        </div>
         {snap.updater.phase === 'downloading' ? (
           <div className="mt-1 h-1 overflow-hidden rounded bg-white/10">
             <div className="h-full" style={{ width: `${snap.updater.percent}%`, background: 'var(--accent)' }} />
@@ -131,16 +151,6 @@ export function SettingsPage() {
           >
             Check for updates
           </button>
-          {snap.updater.phase === 'available' && !snap.updater.packaged ? (
-            <button
-              className="rounded-xl border border-white/15 px-3 py-1 text-sm"
-              onClick={() =>
-                void window.lunar.openUpdateDownload().catch((error: unknown) => toast(error instanceof Error ? error.message : 'Could not open download'))
-              }
-            >
-              Open download
-            </button>
-          ) : null}
         </div>
       </div>
     </section>

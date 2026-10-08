@@ -59,6 +59,7 @@ export interface LunarApi {
   skinInfo: () => Promise<SkinInfo>
   chooseSkin: () => Promise<SkinInfo>
   checkUpdate: () => Promise<UpdaterState>
+  installUpdate: () => Promise<UpdaterState>
   openUpdateDownload: () => Promise<void>
   on: (channel: string, listener: (payload: unknown) => void) => () => void
 }
@@ -101,6 +102,7 @@ const api: LunarApi = {
   skinInfo: () => call('skins:info'),
   chooseSkin: () => call('skins:choose'),
   checkUpdate: () => call('updater:check'),
+  installUpdate: () => call('updater:install'),
   openUpdateDownload: () => call('updater:open'),
   on: (channel, listener) => {
     const wrapped = (_event: IpcRendererEvent, payload: unknown) => listener(payload)

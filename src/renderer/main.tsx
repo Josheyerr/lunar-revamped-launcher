@@ -13,6 +13,9 @@ function Boot() {
     if (!window.lunar) return
     void refresh()
     const offs = [
+      window.lunar.on(IpcChannel.toast, (payload) => {
+        if (typeof payload === 'string' && payload) useApp.getState().toast(payload)
+      }),
       window.lunar.on(IpcChannel.console, (payload) => pushConsole(payload as ConsoleLine)),
       window.lunar.on(IpcChannel.progress, (payload) => useApp.setState({ progress: payload as DownloadProgress })),
       window.lunar.on(IpcChannel.authProgress, (payload) => {

@@ -17,21 +17,33 @@ export function PlayPage() {
   const setPage = useApp((s) => s.setPage)
   const [offline, setOffline] = useState('')
   const [addStep, setAddStep] = useState<'idle' | 'choose' | 'offline'>('idle')
+  const [starting, setStarting] = useState(false)
   const closeAdd = () => {
     setOffline('')
     setAddStep('idle')
   }
   if (!snap) return <div className="skel h-40 rounded-2xl" />
   const account = snap.accounts.find((item) => item.id === snap.activeAccountId)
+  const launcherUpdateLabel =
+    (snap.updater.phase === 'available' || snap.updater.phase === 'downloaded') && snap.updater.latestVersion
+      ? `Update to ${snap.updater.latestVersion}`
+      : ''
   const play = async () => {
+    setStarting(true)
+    useApp.setState({ progress: null })
     try {
       await window.lunar.startGame()
       toast('Game starting')
       if (snap.settings.showConsole) setPage('console')
     } catch (error) {
       toast(error instanceof Error ? error.message : 'Launch failed')
+    } finally {
+      setStarting(false)
+      useApp.setState({ progress: null })
     }
   }
+  const downloading = starting && (Boolean(progress) || snap.client.kind === 'downloading')
+  const playLabel = snap.launch.running ? 'Running' : downloading ? 'Downloading' : starting ? 'Starting' : 'PLAY'
   return (
     <div className="relative flex h-full flex-col justify-between overflow-hidden rounded-3xl p-8">
       <div className="pointer-events-none absolute inset-0 -z-10 bg-[radial-gradient(circle_at_20%_20%,var(--accent),transparent_42%),radial-gradient(circle_at_80%_0%,#1b2240,transparent_40%)] opacity-80 blur-2xl" />
@@ -41,22 +53,28 @@ export function PlayPage() {
           <h1 className="mt-1 text-3xl font-semibold">Lunar Revamped</h1>
           <p className="mt-2 text-sm text-[var(--muted)]">{snap.client.message}</p>
           {snap.updater.phase !== 'idle' ? (
-            <p className="mt-1 text-xs text-[var(--muted)]">{snap.updater.status}</p>
+            <div className="mt-1 flex flex-wrap items-center gap-2">
+              <p className="text-xs text-[var(--muted)]">{snap.updater.status}</p>
+              {launcherUpdateLabel ? (
+                <button
+                  className="rounded-full px-3 py-1 text-xs text-white"
+                  style={{ background: 'var(--accent)' }}
+                  onClick={() =>
+                    void window.lunar
+                      .installUpdate()
+                      .then((updater) => useApp.getState().applyUpdater(updater))
+                      .catch((error: unknown) => toast(error instanceof Error ? error.message : 'Could not install update'))
+                  }
+                >
+                  {launcherUpdateLabel}
+                </button>
+              ) : null}
+            </div>
           ) : null}
           {snap.updater.phase === 'downloading' ? (
             <div className="mt-1 h-1 w-48 overflow-hidden rounded bg-white/10">
               <div className="h-full" style={{ width: `${snap.updater.percent}%`, background: 'var(--accent)' }} />
             </div>
-          ) : null}
-          {snap.updater.phase === 'available' && !snap.updater.packaged ? (
-            <button
-              className="mt-2 rounded-full border border-white/15 px-3 py-1 text-xs"
-              onClick={() =>
-                void window.lunar.openUpdateDownload().catch((error: unknown) => toast(error instanceof Error ? error.message : 'Could not open download'))
-              }
-            >
-              Open download
-            </button>
           ) : null}
         </div>
         <div className="glass flex items-center gap-3 rounded-2xl px-3 py-2">
@@ -80,11 +98,11 @@ export function PlayPage() {
           whileHover={{ scale: 1.04 }}
           whileTap={{ scale: 0.98 }}
           onClick={() => void play()}
-          disabled={snap.launch.running}
+          disabled={snap.launch.running || starting}
           className="h-20 w-64 rounded-full text-lg font-semibold text-white shadow-lg disabled:opacity-60"
           style={{ background: 'var(--accent)' }}
         >
-          {snap.launch.running ? 'Running' : 'PLAY'}
+          {playLabel}
         </motion.button>
         {progress ? (
           <div className="w-80 text-center text-xs text-[var(--muted)]">

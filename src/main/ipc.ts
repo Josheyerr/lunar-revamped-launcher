@@ -1,7 +1,7 @@
 import { app, dialog, ipcMain, shell } from 'electron'
 import fs from 'node:fs'
 import { IpcChannel } from '../shared/ipc'
-import type { AppSnapshot, LaunchSettings } from '../shared/types'
+import type { AppSnapshot, LaunchSettings, LaunchState } from '../shared/types'
 import { emit } from './bus'
 import {
   activeAccount,
@@ -12,14 +12,14 @@ import {
   selectAccount,
   startMicrosoftLogin
 } from './services/auth'
-import { clientStatus, installLatestClient, news, rollbackClient } from './services/download'
+import { clientStatus, ensureClientBeforePlay, installLatestClient, news, rollbackClient } from './services/download'
 import { createInstance, deleteInstance, listInstances, patchInstanceSettings, selectInstance } from './services/instances'
 import { listJava, memoryMb, testJava } from './services/java'
 import { consoleLines, launchState, previewCommand, startGame, stopGame } from './services/launch'
 import { listMods, setModEnabled } from './services/mods'
 import { addServer, listServers, removeServer } from './services/servers'
 import { chooseSkin, skinInfo } from './services/skins'
-import { checkLauncherUpdate, openUpdateDownload, updaterState } from './services/updater'
+import { checkLauncherUpdate, installLauncherUpdate, openUpdateDownload, updaterState } from './services/updater'
 import { loadStore, updateStore } from './store'
 import { applyLaunchBehavior, markQuitting, windowAction } from './window'
 
@@ -49,6 +49,29 @@ function wrap<T>(fn: () => Promise<T> | T): Promise<{ ok: true; data: T } | { ok
       ok: false as const,
       error: error instanceof Error ? error.message : 'Something went wrong.'
     }))
+}
+
+let launchTask: Promise<LaunchState> | null = null
+
+function startLaunch(): Promise<LaunchState> {
+  if (launchTask) return launchTask
+  launchTask = runLaunch().finally(() => {
+    launchTask = null
+  })
+  return launchTask
+}
+
+async function runLaunch(): Promise<LaunchState> {
+  const prepared = await ensureClientBeforePlay()
+  if (prepared.warning) emit(IpcChannel.toast, prepared.warning)
+  const state = await startGame()
+  const settings = loadStore().settings
+  if (settings.closeOnLaunch && !settings.keepOpen) {
+    markQuitting()
+    setTimeout(() => app.quit(), 500)
+  } else if (settings.onLaunch !== 'stay') applyLaunchBehavior()
+  if (settings.showConsole) emit(IpcChannel.console, { stream: 'launcher', text: 'Console attached.', at: Date.now() })
+  return state
 }
 
 export function registerIpc(): void {
@@ -83,18 +106,7 @@ export function registerIpc(): void {
   ipcMain.handle('client:install', () => wrap(() => installLatestClient()))
   ipcMain.handle('client:rollback', () => wrap(() => rollbackClient()))
   ipcMain.handle('launch:preview', () => wrap(() => previewCommand()))
-  ipcMain.handle('launch:start', () =>
-    wrap(async () => {
-      const state = await startGame()
-      const settings = loadStore().settings
-      if (settings.closeOnLaunch && !settings.keepOpen) {
-        markQuitting()
-        setTimeout(() => app.quit(), 500)
-      } else if (settings.onLaunch !== 'stay') applyLaunchBehavior()
-      if (settings.showConsole) emit(IpcChannel.console, { stream: 'launcher', text: 'Console attached.', at: Date.now() })
-      return state
-    })
-  )
+  ipcMain.handle('launch:start', () => wrap(() => startLaunch()))
   ipcMain.handle('launch:stop', () => wrap(() => stopGame()))
   ipcMain.handle('launch:log', () => wrap(() => consoleLines()))
   ipcMain.handle('launch:copyCrash', () =>
@@ -123,6 +135,7 @@ export function registerIpc(): void {
   ipcMain.handle('skins:info', () => wrap(() => skinInfo()))
   ipcMain.handle('skins:choose', () => wrap(() => chooseSkin()))
   ipcMain.handle('updater:check', () => wrap(() => checkLauncherUpdate(true)))
+  ipcMain.handle('updater:install', () => wrap(() => installLauncherUpdate()))
   ipcMain.handle('updater:open', () => wrap(() => openUpdateDownload()))
   ipcMain.handle('account:active', () => wrap(() => activeAccount()?.username ?? ''))
 }

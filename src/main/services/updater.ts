@@ -13,7 +13,9 @@ let seq = 0
 let sessionManual = false
 let configured = false
 let installQueued = false
+let installRequested = false
 let inflight: Promise<UpdaterState> | null = null
+let installTask: Promise<UpdaterState> | null = null
 
 let state: UpdaterState = {
   status: '',
@@ -69,6 +71,16 @@ export async function openUpdateDownload(): Promise<void> {
   await shell.openExternal(INSTALLER_URL)
 }
 
+export function installLauncherUpdate(): Promise<UpdaterState> {
+  if (!app.isPackaged) return openUpdateDownload().then(() => updaterState())
+  if (state.phase === 'installing') return Promise.resolve(updaterState())
+  if (installTask) return installTask
+  installTask = runInstall().finally(() => {
+    installTask = null
+  })
+  return installTask
+}
+
 async function runCheck(): Promise<UpdaterState> {
   publish('checking', { percent: 0 })
   if (!app.isPackaged) return checkGithubRelease()
@@ -99,7 +111,7 @@ async function checkPackagedRelease(): Promise<UpdaterState> {
 }
 
 function configureAutoUpdater(): void {
-  autoUpdater.autoDownload = true
+  autoUpdater.autoDownload = false
   autoUpdater.autoInstallOnAppQuit = true
   if (configured) return
   configured = true
@@ -122,26 +134,57 @@ function configureAutoUpdater(): void {
   })
   autoUpdater.on('update-downloaded', (info) => {
     publish('downloaded', { latestVersion: info.version, percent: 100 })
-    queueInstall()
+    if (installRequested) queueInstall()
   })
   autoUpdater.on('update-cancelled', (info) => {
+    installRequested = false
     publish('error', { latestVersion: info.version, error: 'Update download was cancelled.', percent: 0 })
   })
   autoUpdater.on('error', (error) => {
+    installRequested = false
     publish('error', { error: errorMessage(error), percent: state.percent })
   })
+}
+
+async function runInstall(): Promise<UpdaterState> {
+  configureAutoUpdater()
+  installRequested = true
+  if (state.phase === 'downloaded' || installQueued) {
+    queueInstall()
+    return updaterState()
+  }
+  if (state.phase === 'downloading') return updaterState()
+  if (state.phase !== 'available') {
+    installRequested = false
+    return updaterState()
+  }
+  publish('downloading', { latestVersion: state.latestVersion, percent: 0 })
+  try {
+    await autoUpdater.downloadUpdate()
+  } catch (error) {
+    installRequested = false
+    const phase = state.phase as UpdaterPhase
+    if (phase === 'downloaded' || phase === 'installing' || phase === 'error') {
+      return updaterState()
+    }
+    return publish('error', {
+      latestVersion: state.latestVersion,
+      percent: state.percent,
+      error: errorMessage(error)
+    })
+  }
+  if ((state.phase as UpdaterPhase) === 'downloaded') queueInstall()
+  return updaterState()
 }
 
 function queueInstall(): void {
   if (installQueued || !app.isPackaged) return
   installQueued = true
+  publish('installing', { latestVersion: state.latestVersion, percent: 100 })
   setTimeout(() => {
-    publish('installing', { latestVersion: state.latestVersion, percent: 100 })
-    setTimeout(() => {
-      markQuitting()
-      autoUpdater.quitAndInstall(false, true)
-    }, 700)
-  }, 1200)
+    markQuitting()
+    autoUpdater.quitAndInstall(false, true)
+  }, 700)
 }
 
 interface PublishExtra {
