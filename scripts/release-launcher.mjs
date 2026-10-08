@@ -23,7 +23,14 @@ if (!version || !/^\d+\.\d+\.\d+$/.test(version)) {
 }
 
 function run(cmd, cmdArgs, opts = {}) {
-  const r = spawnSync(cmd, cmdArgs, { cwd: root, stdio: 'inherit', shell: process.platform === 'win32', ...opts })
+  const r = spawnSync(cmd, cmdArgs, {
+    cwd: root,
+    stdio: 'inherit',
+    // cmd.exe splits unquoted -m Release 1.0.9. — keep git args unparsed.
+    shell: false,
+    windowsHide: true,
+    ...opts
+  })
   if (r.status !== 0) process.exit(r.status ?? 1)
 }
 
@@ -32,7 +39,7 @@ const pkg = JSON.parse(fs.readFileSync(pkgPath, 'utf8'))
 pkg.version = version
 fs.writeFileSync(pkgPath, `${JSON.stringify(pkg, null, 2)}\n`)
 
-run('npm', ['install', '--package-lock-only', '--ignore-scripts'])
+run(process.platform === 'win32' ? 'npm.cmd' : 'npm', ['install', '--package-lock-only', '--ignore-scripts'])
 
 if (!push) {
   console.log(`Bumped package.json to ${version}. Re-run with --push to commit, tag, and push.`)
