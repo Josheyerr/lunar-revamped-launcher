@@ -56,3 +56,5 @@ Settings and instances live in `%APPDATA%\.lunar-revamped\`.
 ## Java
 
 The launcher ships a small PVP Java kit (timer agent + forwarder) and downloads **GraalVM CE 21** on first launch into `%APPDATA%\.lunar-revamped\runtimes\`. That becomes the default Java. Temurin 21 remains a fallback if the Graal download fails. Java 8 cannot run the client.
+
+In-game **PvP Optimizer** (frame pacing / earlier-in-tick clicks, no packet changes) lives in the client remake, not this launcher. See `F:\Projects\LunarClientremake-main\README.md` (PvP Optimizer). Use Settings → JVM preset **pvp** or **zgc** for GC; do not duplicate those flags in extra args if the PVP Java forwarder is already selected.

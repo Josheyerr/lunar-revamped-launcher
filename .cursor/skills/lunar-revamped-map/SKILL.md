@@ -29,5 +29,6 @@ Personal from-scratch remake (not official Lunar). Help freely with branding/pat
 | mvn / gradle / compile / quarantine | `lunar-client-deobf-build` |
 | Crash, ports, Connecting…, logs | `debug-client-launch` |
 | Microsoft login / accounts.json | `microsoft-auth-lunar-revamped` |
+| New in-game Lunar mod / HUD / feature | `create-lunar-client-module` |
 
 Batch same end-build (launcher vs client) before releasing.
