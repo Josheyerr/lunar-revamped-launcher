@@ -303,9 +303,9 @@ async function loadLatestRelease(repo: string): Promise<GithubRelease | null> {
   return null
 }
 
-async function latestRelease(repo: string): Promise<GithubRelease | null> {
+async function latestRelease(repo: string, force = false): Promise<GithubRelease | null> {
   const now = Date.now()
-  if (releaseCache && releaseCache.repo === repo && now - releaseCache.at < RELEASE_CACHE_MS) {
+  if (!force && releaseCache && releaseCache.repo === repo && now - releaseCache.at < RELEASE_CACHE_MS) {
     return releaseCache.value
   }
   const existing = releaseInFlight.get(repo)
@@ -474,33 +474,39 @@ function releaseHasZip(release: GithubRelease | null): boolean {
   return Boolean(release?.assets?.some((asset) => asset.name.endsWith('.zip')))
 }
 
-/** Check the client repo before Play. Launcher self-update is not involved. */
+/** Check GitHub on Play and download a newer client zip before launch. */
 export async function ensureClientBeforePlay(): Promise<ClientPlayPrepare> {
   const data = loadStore()
   const installedVersion = data.installedClientVersion
   const installedReady = libsReady(installedVersion ? path.join(folders.versions(), installedVersion) : '')
   const devReady = libsReady(configuredDevRuntime())
 
-  if (installedReady || devReady) {
-    scheduleClientStatusRefresh()
-    return { warning: '' }
-  }
-
   let release: GithubRelease | null
   try {
-    release = await latestRelease(CLIENT_REPO)
+    release = await latestRelease(CLIENT_REPO, true)
   } catch (error) {
+    if (installedReady || devReady) {
+      return {
+        warning: error instanceof Error ? error.message : 'Could not check for client updates'
+      }
+    }
     throw error instanceof Error ? error : new Error('Could not check for client updates')
   }
 
   const ready = release ? withPublicZip(CLIENT_REPO, release) : null
   const remote = releaseVersion(ready)
   const hasZip = releaseHasZip(ready)
+  const needsInstall = Boolean(remote && hasZip && remote !== installedVersion)
+  const launchingLocalRemakeOnly = devReady && !installedReady
 
-  if (remote && hasZip) {
+  if (needsInstall && !launchingLocalRemakeOnly) {
     const zip = ready?.assets?.find((asset) => asset.name.endsWith('.zip'))
     beginInstallProgress(remote, zip?.name ?? publicZipName(CLIENT_REPO, remote), zip?.size ?? 0)
     await installLatestClient(ready ?? undefined)
+    return { warning: '' }
+  }
+
+  if (installedReady || devReady) {
     return { warning: '' }
   }
 
