@@ -26,10 +26,22 @@ function run(cmd, cmdArgs, opts = {}) {
   const r = spawnSync(cmd, cmdArgs, {
     cwd: root,
     stdio: 'inherit',
-    // cmd.exe splits unquoted -m Release 1.0.9. — keep git args unparsed.
+    // Avoid cmd.exe for git -m "Release X.Y.Z." (period gets treated as a pathspec).
     shell: false,
     windowsHide: true,
     ...opts
+  })
+  if (r.status !== 0) process.exit(r.status ?? 1)
+}
+
+/** npm.cmd needs a shell on Windows; git must not. */
+function runNpm(cmdArgs) {
+  const npm = process.platform === 'win32' ? 'npm.cmd' : 'npm'
+  const r = spawnSync(npm, cmdArgs, {
+    cwd: root,
+    stdio: 'inherit',
+    shell: process.platform === 'win32',
+    windowsHide: true
   })
   if (r.status !== 0) process.exit(r.status ?? 1)
 }
@@ -39,7 +51,7 @@ const pkg = JSON.parse(fs.readFileSync(pkgPath, 'utf8'))
 pkg.version = version
 fs.writeFileSync(pkgPath, `${JSON.stringify(pkg, null, 2)}\n`)
 
-run(process.platform === 'win32' ? 'npm.cmd' : 'npm', ['install', '--package-lock-only', '--ignore-scripts'])
+runNpm(['install', '--package-lock-only', '--ignore-scripts'])
 
 if (!push) {
   console.log(`Bumped package.json to ${version}. Re-run with --push to commit, tag, and push.`)
