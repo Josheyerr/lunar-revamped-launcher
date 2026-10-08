@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { optimalGameRamMb } from '@shared/jvm'
 import type { JvmPreset, LaunchSettings } from '@shared/types'
 import { useApp } from '../stores/appStore'
 
@@ -23,7 +24,10 @@ export function SettingsPage() {
     <section className="glass h-full overflow-auto rounded-3xl p-6">
       <div className="flex items-center justify-between">
         <h1 className="text-xl font-semibold">Settings</h1>
-        <button className="text-sm text-[var(--muted)]" onClick={() => void window.lunar.saveSettings({ ...settings, maxRamMb: 2048, minRamMb: 512, jvmPreset: 'default', jvmArgs: '', gameArgs: '', width: 1280, height: 720, fullscreen: false }).then(() => refresh())}>
+        <button className="text-sm text-[var(--muted)]" onClick={() => {
+          const ram = optimalGameRamMb(snap.memory.totalMb)
+          void window.lunar.saveSettings({ ...settings, maxRamMb: ram, minRamMb: ram, jvmPreset: 'default', jvmArgs: '', gameArgs: '', width: 1280, height: 720, fullscreen: false }).then(() => refresh())
+        }}>
           Reset launch defaults
         </button>
       </div>
@@ -37,6 +41,9 @@ export function SettingsPage() {
       <label className="mt-2 block text-sm">Min RAM {settings.minRamMb} MB
         <input type="range" min={256} max={settings.maxRamMb} step={128} value={settings.minRamMb} onChange={(e) => save({ minRamMb: Number(e.target.value) })} className="w-full" />
       </label>
+      <p className="mt-1 text-xs text-[var(--muted)]">
+        Default heap is 4 GB (or 30% of system RAM, minimum 2 GB). Bundled Graal PVP Java commits that amount at start (Xms=Xmx) so the heap never grows mid-fight.
+      </p>
       <div className="mt-4 flex flex-wrap gap-2">
         {presets.map((preset) => (
           <button key={preset} className="rounded-full px-3 py-1 text-sm" style={{ background: settings.jvmPreset === preset ? 'var(--accent)' : 'transparent', border: '1px solid var(--line)' }} onClick={() => save({ jvmPreset: preset })}>
@@ -88,13 +95,13 @@ export function SettingsPage() {
         <input className="mt-1 w-full rounded-xl border border-white/10 bg-transparent px-3 py-2" value={settings.javaPath} onChange={(e) => save({ javaPath: e.target.value })} />
       </label>
       <p className="mt-1 text-xs text-[var(--muted)]">
-        Default is the launcher PVP Java (GraalVM CE 21 + timer agent). It installs on first launch into %APPDATA%\.lunar-revamped\runtimes\mc-pvp-java17. Leave blank / use that path unless you need a custom JDK 17+.
+        Default is the launcher PVP Java (GraalVM CE 21 + 1ms timer agent + even-frame G1). It installs on first launch into %APPDATA%\.lunar-revamped\runtimes\mc-pvp-java17. Leave blank / use that path unless you need a custom JDK 17+.
       </p>
       <label className="mt-3 block text-sm">PVP kit (optional — leave empty with bundled PVP Java)
         <input className="mt-1 w-full rounded-xl border border-white/10 bg-transparent px-3 py-2" value={settings.pvpKitPath} onChange={(e) => save({ pvpKitPath: e.target.value })} placeholder="Only needed for a plain JDK" />
       </label>
       <p className="mt-1 text-xs text-[var(--muted)]">
-        Bundled PVP Java already loads the timer agent and G1 flags. Only set a kit folder if you point Java at a plain JDK instead.
+        Bundled PVP Java already loads the timer agent, commits Xms=Xmx, raises process priority, and uses a short-pause G1 profile. Match Min RAM to Max RAM on a plain JDK for the same heap behavior. Only set a kit folder if you point Java at a plain JDK instead.
       </p>
       <div className="mt-2 flex gap-2">
         <button className="rounded-xl border border-white/15 px-3 py-1 text-sm" onClick={() => void window.lunar.browseJava().then((file) => file && save({ javaPath: file }))}>Browse</button>

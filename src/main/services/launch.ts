@@ -1,4 +1,4 @@
-import { spawn, type ChildProcess } from 'node:child_process'
+import { execFile, spawn, type ChildProcess } from 'node:child_process'
 import fs from 'node:fs'
 import net from 'node:net'
 import path from 'node:path'
@@ -271,7 +271,11 @@ async function buildPlan(prepare: boolean): Promise<Plan> {
     '-DserviceOverrideStyngr=http://127.0.0.1:9'
   ]
   if (process.platform !== 'linux') sys.push('-DLWJGL_DISABLE_XRANDR=true')
-  const mem = [`-Xms${settings.minRamMb}M`, `-Xmx${settings.maxRamMb}M`]
+  const heapMb = Math.max(settings.minRamMb, settings.maxRamMb)
+  const commitHeap = isPvpKitForwarder(java.path) || /graal/i.test(java.version) || /graal/i.test(java.path)
+  const mem = commitHeap
+    ? [`-Xms${heapMb}M`, `-Xmx${heapMb}M`]
+    : [`-Xms${settings.minRamMb}M`, `-Xmx${settings.maxRamMb}M`]
   const ichorCp =
     'lunar-localpatches.jar,sentry-off.jar,lunar.jar,common-0.1.0-SNAPSHOT-all-nomappings.jar,legacy-0.1.0-SNAPSHOT-all-nomappings.jar,optifine-0.1.0-SNAPSHOT-all.jar,genesis-0.1.0-SNAPSHOT-all.jar,lunar-lang.jar'
   const ichorExternal =
@@ -361,7 +365,25 @@ function spawnJava(java: string, args: string[], env: NodeJS.ProcessEnv, logFile
     windowsHide: false
   })
   child.unref()
+  if (child.pid) raiseWindowsPriority(child.pid)
   return child
+}
+
+/** Above-normal so 1ms timer + G1 pauses aren't delayed by desktop scheduling. */
+function raiseWindowsPriority(pid: number): void {
+  if (process.platform !== 'win32' || !Number.isInteger(pid) || pid <= 0) return
+  execFile(
+    'powershell.exe',
+    [
+      '-NoProfile',
+      '-WindowStyle',
+      'Hidden',
+      '-Command',
+      `try { (Get-Process -Id ${pid}).PriorityClass = 'AboveNormal' } catch { }`
+    ],
+    { windowsHide: true },
+    () => undefined
+  )
 }
 
 function watchLog(file: string): void {
@@ -469,9 +491,9 @@ function isPvpKitForwarder(javaPath: string): boolean {
 /**
  * Applies mc-pvp-java17 kit pieces that work on Java 17+:
  * - timer-agent.jar (timeBeginPeriod(1) for 1ms Windows scheduling)
- * - Graal CE/EE JVMCI flags when the selected JDK is already Graal 17+
+ * - Graal community compiler properties (no UseJVMCICompiler/EagerJVMCI — those can break Ichor)
  *
- * Skipped when javaPath is the kit forwarder (it already injects agent + pvp-client.args).
+ * Forwarder already injects timer-agent + pvp-client.args; Graal smoothness props still apply.
  * The Java 8 Graal wrap cannot launch Genesis — use mc-pvp-java17 instead.
  */
 function pvpLaunchArgs(
@@ -480,7 +502,18 @@ function pvpLaunchArgs(
 ): { args: string[]; warnings: string[] } {
   const args: string[] = []
   const warnings: string[] = []
-  if (isPvpKitForwarder(java.path)) {
+  const kitForwarder = isPvpKitForwarder(java.path)
+  const looksGraal = kitForwarder || /graal/i.test(java.version) || /graal/i.test(java.path)
+  if (looksGraal && java.major >= 17) {
+    const community =
+      kitForwarder || /community|GraalVM CE/i.test(java.version) || /community/i.test(java.path)
+    args.push(
+      `-Dgraal.CompilerConfiguration=${community ? 'community' : 'enterprise'}`,
+      '-Dgraal.TuneInlinerExploration=1',
+      '-Dgraal.Vectorization=true'
+    )
+  }
+  if (kitForwarder) {
     return { args, warnings }
   }
   const kit = kitPath.trim()
@@ -494,17 +527,6 @@ function pvpLaunchArgs(
     } else if (fs.existsSync(kit)) {
       warnings.push('PVP kit folder has no timer-agent; timings agent not loaded.')
     }
-  }
-  const looksGraal = /graal/i.test(java.version) || /graal/i.test(java.path)
-  if (looksGraal && java.major >= 17) {
-    const community = /community|GraalVM CE/i.test(java.version) || /community/i.test(java.path)
-    args.push(
-      '-XX:+UseJVMCICompiler',
-      '-XX:+EnableJVMCI',
-      '-XX:+UseJVMCINativeLibrary',
-      '-XX:+EagerJVMCI',
-      `-Dgraal.CompilerConfiguration=${community ? 'community' : 'enterprise'}`
-    )
   }
   return { args, warnings }
 }

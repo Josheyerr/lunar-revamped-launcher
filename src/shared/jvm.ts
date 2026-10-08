@@ -2,6 +2,62 @@ import type { JvmPreset } from './types'
 
 export const DEFAULT_ACCENT = '#6d7cff'
 
+/** Lunar 1.8.9 + Ichor/Genesis sweet spot: enough heap, not so large that G1 pauses stretch. */
+export const OPTIMAL_GAME_RAM_MB = 4096
+
+export function optimalGameRamMb(totalMb: number): number {
+  const cap = Math.max(2048, Math.floor((totalMb * 0.3) / 256) * 256)
+  return Math.min(OPTIMAL_GAME_RAM_MB, cap)
+}
+
+/** Previous launcher defaults — migrate these on update, leave custom RAM alone. */
+export function isStockLauncherRam(minMb: number, maxMb: number): boolean {
+  return (
+    (minMb === 512 && (maxMb === 512 || maxMb === 2048)) ||
+    (minMb === 2048 && maxMb === 2048)
+  )
+}
+
+/**
+ * Short, even G1 pauses + fewer periodic safepoints for 1.8.9 PVP.
+ * No UseJVMCICompiler / EagerJVMCI here — those can break Ichor class load.
+ * Keep in sync with resources/mc-pvp-java17/pvp-client.args.
+ */
+export const PVP_SMOOTH_FLAGS: string[] = [
+  '-XX:+UnlockExperimentalVMOptions',
+  '-XX:+UnlockDiagnosticVMOptions',
+  '-XX:+UseG1GC',
+  '-XX:MaxGCPauseMillis=20',
+  '-XX:G1HeapRegionSize=8M',
+  '-XX:G1NewSizePercent=30',
+  '-XX:G1MaxNewSizePercent=50',
+  '-XX:G1ReservePercent=15',
+  '-XX:SurvivorRatio=32',
+  '-XX:G1MixedGCCountTarget=4',
+  '-XX:G1HeapWastePercent=5',
+  '-XX:InitiatingHeapOccupancyPercent=20',
+  '-XX:G1RSetUpdatingPauseTimePercent=0',
+  '-XX:MaxTenuringThreshold=1',
+  '-XX:G1SATBBufferEnqueueingThresholdPercent=30',
+  '-XX:G1ConcMarkStepDurationMillis=5.0',
+  '-XX:G1PeriodicGCInterval=0',
+  '-XX:GCTimeRatio=99',
+  '-XX:+ExplicitGCInvokesConcurrent',
+  '-XX:+DisableExplicitGC',
+  '-XX:+ParallelRefProcEnabled',
+  '-XX:+AlwaysPreTouch',
+  '-XX:+PerfDisableSharedMem',
+  '-XX:+UseStringDeduplication',
+  '-XX:+UseThreadPriorities',
+  '-XX:+SegmentedCodeCache',
+  '-XX:ReservedCodeCacheSize=384M',
+  '-XX:NmethodSweepActivity=1',
+  '-XX:GuaranteedSafepointInterval=300000',
+  '-XX:+UseCountedLoopSafepoints',
+  '-XX:LoopStripMiningIter=10000',
+  '-Djava.net.preferIPv4Stack=true'
+]
+
 export function presetArgs(preset: JvmPreset, major: number): string {
   switch (preset) {
     case 'default':
@@ -36,36 +92,8 @@ export function presetArgs(preset: JvmPreset, major: number): string {
         ? '-XX:+UseZGC -XX:+ZGenerational -Djava.net.preferIPv4Stack=true'
         : '-XX:+UseG1GC -Djava.net.preferIPv4Stack=true'
     case 'pvp':
-      // G1 timing profile from mc-pvp-java / mc-pvp-java17. Safe on HotSpot 17+.
-      // Graal JVMCI flags are added at launch only when the selected JDK is Graal 17+.
-      // Skip this preset when javaPath is the mc-pvp-java17 forwarder (it already injects these).
-      return [
-        '-XX:+UnlockExperimentalVMOptions',
-        '-XX:+UnlockDiagnosticVMOptions',
-        '-XX:+UseG1GC',
-        '-XX:MaxGCPauseMillis=35',
-        '-XX:G1HeapRegionSize=8M',
-        '-XX:G1NewSizePercent=20',
-        '-XX:G1MaxNewSizePercent=40',
-        '-XX:G1ReservePercent=15',
-        '-XX:SurvivorRatio=32',
-        '-XX:G1MixedGCCountTarget=4',
-        '-XX:G1HeapWastePercent=10',
-        '-XX:InitiatingHeapOccupancyPercent=15',
-        '-XX:G1RSetUpdatingPauseTimePercent=0',
-        '-XX:MaxTenuringThreshold=4',
-        '-XX:G1SATBBufferEnqueueingThresholdPercent=30',
-        '-XX:G1ConcMarkStepDurationMillis=5.0',
-        // G1ConcRSHotCardLimit / G1ConcRefinementServiceIntervalMillis removed in JDK 20/21.
-        '-XX:GCTimeRatio=99',
-        '-XX:+ExplicitGCInvokesConcurrent',
-        '-XX:+ParallelRefProcEnabled',
-        '-XX:+AlwaysPreTouch',
-        '-XX:+PerfDisableSharedMem',
-        '-XX:+UseStringDeduplication',
-        '-XX:ReservedCodeCacheSize=320M',
-        '-Djava.net.preferIPv4Stack=true'
-      ].join(' ')
+      // Keep in sync with resources/mc-pvp-java17/pvp-client.args (forwarder injects that file).
+      return PVP_SMOOTH_FLAGS.join(' ')
     case 'custom':
       return ''
     default: {

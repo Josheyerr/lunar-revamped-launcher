@@ -1,8 +1,9 @@
 import { safeStorage } from 'electron'
 import fs from 'node:fs'
+import os from 'node:os'
 import path from 'node:path'
 import Store from 'electron-store'
-import { DEFAULT_ACCENT } from '../shared/jvm'
+import { DEFAULT_ACCENT, isStockLauncherRam, optimalGameRamMb } from '../shared/jvm'
 import type { Account, Instance, LaunchSettings } from '../shared/types'
 import { bundledPvpJavaPath, folders, PVP_JAVA_DIR } from './paths'
 
@@ -31,8 +32,8 @@ export function defaultSettings(): LaunchSettings {
   const dev = process.env.LUNAR_REVAMPED_RUNTIME || (fs.existsSync(REMOTE_RUNTIME) ? REMOTE_RUNTIME : '')
   const javaPath = resolveDefaultJava()
   return {
-    minRamMb: 512,
-    maxRamMb: 2048,
+    minRamMb: optimalGameRamMb(Math.round(os.totalmem() / (1024 * 1024))),
+    maxRamMb: optimalGameRamMb(Math.round(os.totalmem() / (1024 * 1024))),
     jvmArgs: '',
     // Bundled PVP forwarder already injects pvp-client.args.
     jvmPreset: 'default',
@@ -145,12 +146,21 @@ export function loadStore(): Persisted {
   }))
   const defaults = defaultSettings()
   raw.settings = { ...defaults, ...raw.settings }
+  let migrated = false
+  if (isStockLauncherRam(raw.settings.minRamMb, raw.settings.maxRamMb)) {
+    const ram = optimalGameRamMb(Math.round(os.totalmem() / (1024 * 1024)))
+    raw.settings.minRamMb = ram
+    raw.settings.maxRamMb = ram
+    migrated = true
+  }
   const bundled = resolveDefaultJava()
   if (bundled && shouldAdoptDefaultJava((raw.settings.javaPath || '').trim(), bundled)) {
     raw.settings.javaPath = bundled
     raw.settings.pvpKitPath = ''
+    migrated = true
   }
   cache = raw
+  if (migrated) saveStore()
   return raw
 }
 
