@@ -507,11 +507,8 @@ function pvpLaunchArgs(
   if (looksGraal && java.major >= 17) {
     const community =
       kitForwarder || /community|GraalVM CE/i.test(java.version) || /community/i.test(java.path)
-    args.push(
-      `-Dgraal.CompilerConfiguration=${community ? 'community' : 'enterprise'}`,
-      '-Dgraal.TuneInlinerExploration=1',
-      '-Dgraal.Vectorization=true'
-    )
+    // CE 21 dropped TuneInlinerExploration / Vectorization — unknown -Dgraal.* is fatal.
+    args.push(`-Dgraal.CompilerConfiguration=${community ? 'community' : 'enterprise'}`)
   }
   if (kitForwarder) {
     return { args, warnings }
