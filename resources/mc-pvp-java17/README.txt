@@ -8,5 +8,6 @@ and downloads GraalVM CE 21 into:
 
 graalvm.path is rewritten to the downloaded Graal home at install time.
 
-pvp-client.args is a short-pause G1 + safepoint profile for even 1.8.9 frame times
-(timer-agent.dll still sets Windows to 1ms scheduling). Do not add JVMCI force flags.
+pvp-client.args is a 10ms G1 + safepoint profile for even 1.8.9 frame times and
+click consistency (timer-agent.dll still sets Windows to 1ms scheduling).
+Do not add JVMCI force flags.

@@ -2,7 +2,7 @@ import { execFile, spawn, type ChildProcess } from 'node:child_process'
 import fs from 'node:fs'
 import net from 'node:net'
 import path from 'node:path'
-import { parseArgs, presetArgs } from '../../shared/jvm'
+import { parseArgs, presetArgs, PVP_SMOOTH_FLAGS } from '../../shared/jvm'
 import { IpcChannel } from '../../shared/ipc'
 import type {
   CommandPreview,
@@ -493,7 +493,8 @@ function isPvpKitForwarder(javaPath: string): boolean {
  * - timer-agent.jar (timeBeginPeriod(1) for 1ms Windows scheduling)
  * - Graal community compiler properties (no UseJVMCICompiler/EagerJVMCI — those can break Ichor)
  *
- * Forwarder already injects timer-agent + pvp-client.args; Graal smoothness props still apply.
+ * Forwarder injects timer-agent + pvp-client.args. Launcher also appends
+ * PVP_SMOOTH_FLAGS so a stale AppData args file cannot keep the old 20ms G1 target.
  * The Java 8 Graal wrap cannot launch Genesis — use mc-pvp-java17 instead.
  */
 function pvpLaunchArgs(
@@ -511,6 +512,7 @@ function pvpLaunchArgs(
     args.push(`-Dgraal.CompilerConfiguration=${community ? 'community' : 'enterprise'}`)
   }
   if (kitForwarder) {
+    args.push(...PVP_SMOOTH_FLAGS)
     return { args, warnings }
   }
   const kit = kitPath.trim()

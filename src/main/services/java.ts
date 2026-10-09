@@ -16,7 +16,7 @@ const execFileAsync = promisify(execFile)
 const MIN_JAVA_MAJOR = 17
 
 const KIT_MARKER = 'kit.version'
-const KIT_VERSION = '21.0.2-2'
+const KIT_VERSION = '21.0.2-3'
 
 export { bundledPvpJavaPath, GRAAL_RUNTIME_DIR, PVP_JAVA_DIR }
 

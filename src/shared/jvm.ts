@@ -20,6 +20,7 @@ export function isStockLauncherRam(minMb: number, maxMb: number): boolean {
 
 /**
  * Short, even G1 pauses + fewer periodic safepoints for 1.8.9 PVP.
+ * 10ms is as low as G1 stays stable; lower young-GC spam feels like microstutter.
  * No UseJVMCICompiler / EagerJVMCI here — those can break Ichor class load.
  * Keep in sync with resources/mc-pvp-java17/pvp-client.args.
  */
@@ -27,35 +28,38 @@ export const PVP_SMOOTH_FLAGS: string[] = [
   '-XX:+UnlockExperimentalVMOptions',
   '-XX:+UnlockDiagnosticVMOptions',
   '-XX:+UseG1GC',
-  '-XX:MaxGCPauseMillis=20',
+  '-XX:MaxGCPauseMillis=10',
   '-XX:G1HeapRegionSize=8M',
-  '-XX:G1NewSizePercent=30',
-  '-XX:G1MaxNewSizePercent=50',
+  '-XX:G1NewSizePercent=20',
+  '-XX:G1MaxNewSizePercent=40',
   '-XX:G1ReservePercent=15',
   '-XX:SurvivorRatio=32',
-  '-XX:G1MixedGCCountTarget=4',
+  '-XX:G1MixedGCCountTarget=8',
   '-XX:G1HeapWastePercent=5',
-  '-XX:InitiatingHeapOccupancyPercent=20',
+  '-XX:InitiatingHeapOccupancyPercent=15',
   '-XX:G1RSetUpdatingPauseTimePercent=0',
   '-XX:MaxTenuringThreshold=1',
   '-XX:G1SATBBufferEnqueueingThresholdPercent=30',
-  '-XX:G1ConcMarkStepDurationMillis=5.0',
+  '-XX:G1ConcMarkStepDurationMillis=3.0',
   '-XX:G1PeriodicGCInterval=0',
   '-XX:GCTimeRatio=99',
-  '-XX:+ExplicitGCInvokesConcurrent',
   '-XX:+DisableExplicitGC',
   '-XX:+ParallelRefProcEnabled',
+  '-XX:-UseDynamicNumberOfGCThreads',
   '-XX:+AlwaysPreTouch',
   '-XX:+PerfDisableSharedMem',
-  '-XX:+UseStringDeduplication',
   '-XX:+UseThreadPriorities',
+  '-XX:ThreadPriorityPolicy=1',
+  '-XX:+OmitStackTraceInFastThrow',
   '-XX:+SegmentedCodeCache',
-  '-XX:ReservedCodeCacheSize=384M',
+  '-XX:ReservedCodeCacheSize=512M',
   '-XX:NmethodSweepActivity=1',
   '-XX:GuaranteedSafepointInterval=300000',
   '-XX:+UseCountedLoopSafepoints',
   '-XX:LoopStripMiningIter=10000',
-  '-Djava.net.preferIPv4Stack=true'
+  '-Djava.net.preferIPv4Stack=true',
+  '-Dio.netty.leakDetection.level=DISABLED',
+  '-Dorg.lwjgl.util.NoChecks=true'
 ]
 
 export function presetArgs(preset: JvmPreset, major: number): string {
